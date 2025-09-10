@@ -1,5 +1,3 @@
-'use client';
-
 import { app } from '@/lib/firebase';
 import {
   getFirestore,
