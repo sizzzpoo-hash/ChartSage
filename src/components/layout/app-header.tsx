@@ -2,7 +2,7 @@
 
 import { Menu, Bot, LogOut, User } from 'lucide-react';
 import Link from 'next/link';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { NavLinks } from './nav-links';
 import { useAuth } from '@/hooks/use-auth';
@@ -39,14 +39,21 @@ export function AppHeader() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="flex flex-col">
+          <SheetHeader className="text-left">
+            <SheetTitle>
+               <Link
+                href="/"
+                className="flex items-center gap-2 text-lg font-semibold"
+              >
+                <Bot className="h-6 w-6 text-primary" />
+                <span>ChartSage AI</span>
+              </Link>
+            </SheetTitle>
+            <SheetDescription>
+              Navigate through the app pages.
+            </SheetDescription>
+          </SheetHeader>
           <nav className="grid gap-2 text-lg font-medium">
-            <Link
-              href="/"
-              className="mb-4 flex items-center gap-2 text-lg font-semibold"
-            >
-              <Bot className="h-6 w-6 text-primary" />
-              <span>ChartSage AI</span>
-            </Link>
             <NavLinks isMobile={true} />
           </nav>
         </SheetContent>
