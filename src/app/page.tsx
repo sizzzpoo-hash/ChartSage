@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import withAuth from '@/components/auth/with-auth';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/hooks/use-auth';
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 const intervals = ['1h', '4h', '1d', '1w'];
@@ -30,6 +31,7 @@ function Home() {
   const [symbol, setSymbol] = React.useState('BTCUSDT');
   const [interval, setInterval] = React.useState('1d');
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleAnalysis = async (question?: string) => {
     if (!chartRef.current) {
@@ -37,6 +39,14 @@ function Home() {
         variant: 'destructive',
         title: 'Chart not ready',
         description: 'Please wait for the chart to load before analyzing.',
+      });
+      return;
+    }
+    if (!user) {
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Error',
+        description: 'You must be logged in to perform an analysis.',
       });
       return;
     }
@@ -58,7 +68,7 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, symbol, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(dataUri, symbol, user.uid, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);

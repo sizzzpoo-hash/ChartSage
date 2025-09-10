@@ -9,27 +9,25 @@ import {
   getDocs,
   orderBy,
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
 import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
 
 const db = getFirestore(app);
-const auth = getAuth(app);
 
 export async function saveAnalysisResult(
   analysis: AnalyzeChartAndGenerateTradeSignalOutput,
   symbol: string,
   chartDataUri: string,
+  userId: string,
 ) {
-  const user = auth.currentUser;
-  if (!user) {
-    console.log('No user logged in, skipping save.');
+  if (!userId) {
+    console.log('No user ID provided, skipping save.');
     return;
   }
 
   try {
     await addDoc(collection(db, 'analysisHistory'), {
-      userId: user.uid,
+      userId: userId,
       timestamp: serverTimestamp(),
       chartName: symbol,
       analysisSummary: analysis.analysis,

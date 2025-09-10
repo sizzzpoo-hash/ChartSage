@@ -5,19 +5,23 @@ import { saveAnalysisResult } from '@/lib/firestore';
 
 export async function getAiAnalysis(
   chartDataUri: string, 
-  symbol: string, 
+  symbol: string,
+  userId: string,
   question?: string, 
   existingAnalysis?: string
 ) {
   if (!chartDataUri) {
     return { success: false, error: 'Chart image is missing.' };
   }
+  if (!userId) {
+     return { success: false, error: 'User is not authenticated.' };
+  }
 
   try {
     const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, question, existingAnalysis });
     
     // Save the analysis result to Firestore
-    await saveAnalysisResult(result, symbol, chartDataUri);
+    await saveAnalysisResult(result, symbol, chartDataUri, userId);
     
     return { success: true, data: result };
   } catch (error) {
