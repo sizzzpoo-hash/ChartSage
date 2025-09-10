@@ -16,6 +16,8 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
     .describe(
       "A candlestick chart image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
+  question: z.string().optional().describe('A follow-up question to refine the analysis.'),
+  existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
 });
 export type AnalyzeChartAndGenerateTradeSignalInput = z.infer<typeof AnalyzeChartAndGenerateTradeSignalInputSchema>;
 
@@ -37,7 +39,16 @@ const prompt = ai.definePrompt({
   name: 'analyzeChartAndGenerateTradeSignalPrompt',
   input: {schema: AnalyzeChartAndGenerateTradeSignalInputSchema},
   output: {schema: AnalyzeChartAndGenerateTradeSignalOutputSchema},
-  prompt: `You are an expert financial analyst specializing in candlestick chart pattern analysis and trade signal generation. Analyze the provided candlestick chart image and generate a concise market analysis and a trade signal.
+  prompt: `You are an expert financial analyst specializing in candlestick chart pattern analysis and trade signal generation. 
+  
+{{#if question}}
+You are refining a previous analysis based on a user's question.
+Previous Analysis: {{{existingAnalysis}}}
+User Question: {{{question}}}
+Refine the analysis and trade signal based on the question. Do not repeat the previous analysis. Provide a new, more detailed analysis that directly addresses the user's question, and adjust the trade signal if necessary.
+{{else}}
+Analyze the provided candlestick chart image and generate a concise market analysis and a trade signal.
+{{/if}}
 
 Chart Image: {{media url=chartDataUri}}
 

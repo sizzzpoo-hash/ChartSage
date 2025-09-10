@@ -28,7 +28,7 @@ function Home() {
   const [symbol, setSymbol] = React.useState('BTCUSDT');
   const { toast } = useToast();
 
-  const handleAnalyze = async () => {
+  const handleAnalysis = async (question?: string) => {
     if (!chartRef.current) {
       toast({
         variant: 'destructive',
@@ -51,9 +51,11 @@ function Home() {
     const dataUri = canvas.toDataURL('image/png');
     
     setIsLoading(true);
-    setAnalysisResult(null);
+    if (!question) {
+      setAnalysisResult(null);
+    }
 
-    const result = await getAiAnalysis(dataUri, symbol);
+    const result = await getAiAnalysis(dataUri, symbol, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
@@ -91,9 +93,9 @@ function Home() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleAnalyze} disabled={isLoading} size="lg">
+            <Button onClick={() => handleAnalysis()} disabled={isLoading} size="lg">
               <Zap className="mr-2 h-4 w-4" />
-              {isLoading ? 'Analyzing...' : 'Analyze with AI'}
+              {isLoading && !analysisResult ? 'Analyzing...' : 'Analyze with AI'}
             </Button>
           </CardHeader>
           <CardContent>
@@ -119,8 +121,14 @@ function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading && <AnalysisSkeleton />}
-            {analysisResult && <AnalysisDisplay result={analysisResult} />}
+            {isLoading && !analysisResult && <AnalysisSkeleton />}
+            {analysisResult && (
+              <AnalysisDisplay 
+                result={analysisResult} 
+                onRefine={handleAnalysis}
+                isLoading={isLoading} 
+              />
+            )}
             {!isLoading && !analysisResult && (
               <div className="flex h-full min-h-[400px] flex-col items-center justify-center text-center">
                 <div className="rounded-full bg-muted p-3">
