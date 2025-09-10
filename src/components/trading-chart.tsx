@@ -8,8 +8,10 @@ import {
   CandlestickData,
   UTCTimestamp,
 } from 'lightweight-charts';
-import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { initialChartData } from '@/lib/chart-data';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
+import { getBinanceKlines } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from './ui/skeleton';
 
 export type TradingChartHandle = {
   takeScreenshot: () => HTMLCanvasElement | undefined;
@@ -22,6 +24,9 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
     series: ISeriesApi<'Candlestick'> | null;
   }>({ chart: null, series: null });
 
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
   useImperativeHandle(ref, () => ({
     takeScreenshot: () => {
       return chartRef.current.chart?.takeScreenshot();
@@ -31,68 +36,104 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#2C3E50' },
-        textColor: 'rgba(234, 239, 248, 0.8)',
-      },
-      grid: {
-        vertLines: { color: '#34495E' },
-        horzLines: { color: '#34495E' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 500,
-      timeScale: {
-        borderColor: '#4A6572',
-      },
-      rightPriceScale: {
-        borderColor: '#4A6572',
-      },
-    });
+    let chart: IChartApi | null = null;
+    let candleSeries: ISeriesApi<'Candlestick'> | null = null;
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#2ECC71',
-      downColor: '#E74C3C',
-      borderDownColor: '#E74C3C',
-      borderUpColor: '#2ECC71',
-      wickDownColor: '#E74C3C',
-      wickUpColor: '#2ECC71',
-    });
+    const initializeChart = (initialData: CandlestickData<UTCTimestamp>[]) => {
+      if (!chartContainerRef.current) return;
+      
+      chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: '#2C3E50' },
+          textColor: 'rgba(234, 239, 248, 0.8)',
+        },
+        grid: {
+          vertLines: { color: '#34495E' },
+          horzLines: { color: '#34495E' },
+        },
+        width: chartContainerRef.current.clientWidth,
+        height: 500,
+        timeScale: {
+          borderColor: '#4A6572',
+        },
+        rightPriceScale: {
+          borderColor: '#4A6572',
+        },
+      });
 
-    candleSeries.setData(initialChartData);
-    chartRef.current = { chart, series: candleSeries };
+      candleSeries = chart.addCandlestickSeries({
+        upColor: '#2ECC71',
+        downColor: '#E74C3C',
+        borderDownColor: '#E74C3C',
+        borderUpColor: '#2ECC71',
+        wickDownColor: '#E74C3C',
+        wickUpColor: '#2ECC71',
+      });
 
-    const handleResize = () => {
-      chart.applyOptions({ width: chartContainerRef.current!.clientWidth });
+      candleSeries.setData(initialData);
+      chartRef.current = { chart, series: candleSeries };
+      
+      setIsLoading(false);
+
+      const handleResize = () => {
+        chart?.applyOptions({ width: chartContainerRef.current!.clientWidth });
+      };
+      
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        chart?.remove();
+      };
     };
 
-    window.addEventListener('resize', handleResize);
+    const fetchData = async () => {
+      setIsLoading(true);
+      const result = await getBinanceKlines();
+      if (result.success && result.data) {
+        initializeChart(result.data);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Failed to load chart data',
+          description: result.error || 'Could not fetch live market data from Binance.',
+        });
+        setIsLoading(false);
+      }
+    };
 
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-        const lastData = initialChartData[initialChartData.length - 1] as CandlestickData<UTCTimestamp>;
-        const nextTime = (lastData.time as number) + 24 * 60 * 60;
-        const nextClose = lastData.close * (1 + (Math.random() - 0.5) * 0.02);
-        const nextOpen = lastData.close;
-        const nextHigh = Math.max(nextOpen, nextClose) * (1 + Math.random() * 0.01);
-        const nextLow = Math.min(nextOpen, nextClose) * (1 - Math.random() * 0.01);
-        const nextBar: CandlestickData<UTCTimestamp> = {
-            time: nextTime as UTCTimestamp,
-            open: nextOpen,
-            high: nextHigh,
-            low: nextLow,
-            close: nextClose,
-        };
-        candleSeries.update(nextBar);
-        initialChartData.push(nextBar);
-    }, 5000);
+    fetchData();
+
+    // Set up WebSocket for real-time updates
+    const symbol = 'btcusdt';
+    const interval = '1d';
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol}@kline_${interval}`);
+
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      const kline = message.k;
+      const newBar: CandlestickData<UTCTimestamp> = {
+        time: (kline.t / 1000) as UTCTimestamp,
+        open: parseFloat(kline.o),
+        high: parseFloat(kline.h),
+        low: parseFloat(kline.l),
+        close: parseFloat(kline.c),
+      };
+      chartRef.current.series?.update(newBar);
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+    };
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      clearInterval(interval);
-      chart.remove();
+      ws.close();
+      chartRef.current.chart?.remove();
     };
-  }, []);
+  }, [toast]);
+
+  if (isLoading) {
+    return <Skeleton className="h-[500px] w-full" />;
+  }
 
   return <div ref={chartContainerRef} className="h-[500px] w-full" />;
 });

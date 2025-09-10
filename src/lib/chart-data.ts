@@ -1,6 +1,9 @@
 import { CandlestickData, UTCTimestamp } from 'lightweight-charts';
 
-// Generates some random candlestick data
+// This file is no longer used for the primary chart data, as we are now fetching
+// live data from the Binance API. It is kept for reference or future use with
+// local/fallback data.
+
 function generateData(count: number, start: Date): CandlestickData<UTCTimestamp>[] {
   const data: CandlestickData<UTCTimestamp>[] = [];
   let current = start.getTime() / 1000;
