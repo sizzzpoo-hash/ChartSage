@@ -34,22 +34,21 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
   }));
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
-
+    let isMounted = true;
     let chart: IChartApi | null = null;
     let candleSeries: ISeriesApi<'Candlestick'> | null = null;
 
     const initializeChart = (initialData: CandlestickData<UTCTimestamp>[]) => {
-      if (!chartContainerRef.current) return;
-      
+      if (!chartContainerRef.current || !isMounted) return;
+
       chart = createChart(chartContainerRef.current, {
         layout: {
-          background: { type: ColorType.Solid, color: '#2C3E50' },
+          background: { type: ColorType.Solid, color: 'transparent' },
           textColor: 'rgba(234, 239, 248, 0.8)',
         },
         grid: {
-          vertLines: { color: '#34495E' },
-          horzLines: { color: '#34495E' },
+          vertLines: { color: 'rgba(70, 130, 180, 0.5)' },
+          horzLines: { color: 'rgba(70, 130, 180, 0.5)' },
         },
         width: chartContainerRef.current.clientWidth,
         height: 500,
@@ -69,73 +68,91 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
         wickDownColor: '#E74C3C',
         wickUpColor: '#2ECC71',
       });
-
-      candleSeries.setData(initialData);
+      
+      if (initialData.length > 0) {
+        candleSeries.setData(initialData);
+        chart.timeScale().fitContent();
+      }
+      
       chartRef.current = { chart, series: candleSeries };
-      
-      setIsLoading(false);
 
-      const handleResize = () => {
-        chart?.applyOptions({ width: chartContainerRef.current!.clientWidth });
-      };
+      if (isMounted) {
+        setIsLoading(false);
+      }
       
+      const handleResize = () => {
+        if (chartContainerRef.current) {
+          chart?.applyOptions({ width: chartContainerRef.current.clientWidth });
+        }
+      };
+
       window.addEventListener('resize', handleResize);
+
+      // WebSocket for real-time updates
+      const symbol = 'btcusdt';
+      const interval = '1d';
+      const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol}@kline_${interval}`);
+
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        const kline = message.k;
+        const newBar: CandlestickData<UTCTimestamp> = {
+          time: (kline.t / 1000) as UTCTimestamp,
+          open: parseFloat(kline.o),
+          high: parseFloat(kline.h),
+          low: parseFloat(kline.l),
+          close: parseFloat(kline.c),
+        };
+        chartRef.current.series?.update(newBar);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket Error:', error);
+      };
+
       return () => {
+        ws.close();
         window.removeEventListener('resize', handleResize);
         chart?.remove();
       };
     };
 
     const fetchData = async () => {
+      if (!isMounted) return;
       setIsLoading(true);
       const result = await getBinanceKlines();
-      if (result.success && result.data) {
-        initializeChart(result.data);
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Failed to load chart data',
-          description: result.error || 'Could not fetch live market data from Binance.',
-        });
-        setIsLoading(false);
+      if (isMounted) {
+        if (result.success && result.data) {
+          initializeChart(result.data);
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Failed to load chart data',
+            description: result.error || 'Could not fetch live market data from Binance.',
+          });
+          setIsLoading(false);
+        }
       }
     };
 
     fetchData();
 
-    // Set up WebSocket for real-time updates
-    const symbol = 'btcusdt';
-    const interval = '1d';
-    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol}@kline_${interval}`);
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      const kline = message.k;
-      const newBar: CandlestickData<UTCTimestamp> = {
-        time: (kline.t / 1000) as UTCTimestamp,
-        open: parseFloat(kline.o),
-        high: parseFloat(kline.h),
-        low: parseFloat(kline.l),
-        close: parseFloat(kline.c),
-      };
-      chartRef.current.series?.update(newBar);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket Error:', error);
-    };
-
     return () => {
-      ws.close();
+      isMounted = false;
       chartRef.current.chart?.remove();
     };
   }, [toast]);
 
-  if (isLoading) {
-    return <Skeleton className="h-[500px] w-full" />;
-  }
-
-  return <div ref={chartContainerRef} className="h-[500px] w-full" />;
+  return (
+    <div className="relative h-[500px] w-full">
+      {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+              <Skeleton className="h-full w-full" />
+          </div>
+      )}
+      <div ref={chartContainerRef} className={`h-full w-full ${isLoading ? 'invisible' : ''}`} />
+    </div>
+  );
 });
 
 TradingChart.displayName = 'TradingChart';
