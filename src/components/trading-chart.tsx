@@ -34,9 +34,10 @@ type BinanceKline = [
 
 type TradingChartProps = {
   symbol: string;
+  interval: string;
 };
 
-const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol }, ref) => {
+const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<{
     chart: IChartApi | null;
@@ -52,16 +53,20 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
   useEffect(() => {
     let isMounted = true;
-    let chart: IChartApi | null = null;
-    let candleSeries: ISeriesApi<'Candlestick'> | null = null;
     let ws: WebSocket | null = null;
-
+    
     const initializeChart = async () => {
-      if (!chartContainerRef.current || !isMounted) return;
+      if (!chartContainerRef.current) return;
       
       setIsLoading(true);
 
-      chart = createChart(chartContainerRef.current, {
+      // If a chart instance exists, remove it before creating a new one
+      if (chartRef.current.chart) {
+        chartRef.current.chart.remove();
+        chartRef.current.chart = null;
+      }
+      
+      const chart = createChart(chartContainerRef.current, {
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
           textColor: 'rgba(234, 239, 248, 0.8)',
@@ -82,7 +87,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         },
       });
 
-      candleSeries = chart.addCandlestickSeries({
+      const candleSeries = chart.addCandlestickSeries({
         upColor: '#2ECC71',
         downColor: '#E74C3C',
         borderDownColor: '#E74C3C',
@@ -95,7 +100,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
       // Fetch historical data
       try {
-        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=150`);
+        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=150`);
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
@@ -115,7 +120,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         }
 
         // Setup WebSocket for live data
-        ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_1d`);
+        ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${interval}`);
         ws.onmessage = (event) => {
           if (!isMounted) return;
           const message = JSON.parse(event.data);
@@ -157,7 +162,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart = null;
       }
     };
-  }, [symbol]);
+  }, [symbol, interval]);
 
   return (
     <div className="relative h-[500px] w-full">
