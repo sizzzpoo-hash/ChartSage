@@ -22,6 +22,7 @@ import withAuth from '@/components/auth/with-auth';
 import { useEffect, useState } from 'react';
 import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
 import { useAuth } from '@/hooks/use-auth';
+import Image from 'next/image';
 
 
 function HistoryPage() {
@@ -64,15 +65,16 @@ function HistoryPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[180px]">Date</TableHead>
-                <TableHead className="w-[100px]">Chart</TableHead>
-                <TableHead className="w-[300px]">Trade Signal</TableHead>
+                <TableHead className="w-[100px]">Symbol</TableHead>
+                <TableHead className="w-[150px]">Chart</TableHead>
+                <TableHead className="w-[250px]">Trade Signal</TableHead>
                 <TableHead>Analysis Summary</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                  <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     Loading history...
                   </TableCell>
                 </TableRow>
@@ -85,13 +87,24 @@ function HistoryPage() {
                     <TableCell>
                       <Badge variant="outline">{item.chartName}</Badge>
                     </TableCell>
+                    <TableCell>
+                      {item.chartDataUri && (
+                        <Image
+                          src={item.chartDataUri}
+                          alt={`Chart for ${item.chartName}`}
+                          width={120}
+                          height={80}
+                          className="rounded-md object-cover"
+                        />
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs">{item.tradeSignal}</TableCell>
                     <TableCell className="text-muted-foreground">{item.analysisSummary}</TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     No analysis history found.
                   </TableCell>
                 </TableRow>

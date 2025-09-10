@@ -18,7 +18,7 @@ export async function getAiAnalysis(
     
     // Don't await this, let it run in the background if it's a new analysis
     if (!question) {
-      saveAnalysisResult(result, symbol);
+      saveAnalysisResult(result, symbol, chartDataUri);
     }
     
     return { success: true, data: result };

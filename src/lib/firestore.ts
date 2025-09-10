@@ -19,6 +19,7 @@ const auth = getAuth(app);
 export async function saveAnalysisResult(
   analysis: AnalyzeChartAndGenerateTradeSignalOutput,
   symbol: string,
+  chartDataUri: string,
 ) {
   const user = auth.currentUser;
   if (!user) {
@@ -33,6 +34,7 @@ export async function saveAnalysisResult(
       chartName: symbol,
       analysisSummary: analysis.analysis,
       tradeSignal: `Entry: ${analysis.tradeSignal.entryPriceRange}, TP: ${analysis.tradeSignal.takeProfitLevels.join(', ')}, SL: ${analysis.tradeSignal.stopLossLevel}`,
+      chartDataUri: chartDataUri,
     });
   } catch (error) {
     console.error('Error saving analysis result to Firestore:', error);
@@ -58,11 +60,15 @@ export async function getAnalysisHistory(
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      // Ensure timestamp exists and has the toDate method before calling it.
+      const timestamp = data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : new Date().toISOString();
+      
       history.push({
-        timestamp: data.timestamp.toDate().toISOString(),
+        timestamp: timestamp,
         chartName: data.chartName,
         analysisSummary: data.analysisSummary,
         tradeSignal: data.tradeSignal,
+        chartDataUri: data.chartDataUri,
       });
     });
 

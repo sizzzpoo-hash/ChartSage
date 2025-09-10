@@ -22,6 +22,7 @@ const AnalysisEntrySchema = z.object({
   chartName: z.string().describe('The name or identifier of the chart analyzed.'),
   analysisSummary: z.string().describe('A summary of the AI analysis.'),
   tradeSignal: z.string().describe('The generated trade signal.'),
+  chartDataUri: z.string().optional().describe('A snapshot of the chart at the time of analysis.'),
 });
 
 const ReviewAnalysisHistoryOutputSchema = z.array(AnalysisEntrySchema).describe('An array of analysis history entries.');
