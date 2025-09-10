@@ -8,6 +8,7 @@ import {
   CandlestickData,
   UTCTimestamp,
   Time,
+  LineData,
 } from 'lightweight-charts';
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { Skeleton } from './ui/skeleton';
@@ -42,7 +43,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
   const chartRef = useRef<{
     chart: IChartApi | null;
     series: ISeriesApi<'Candlestick'> | null;
-  }>({ chart: null, series: null });
+    smaSeries: ISeriesApi<'Line'> | null;
+  }>({ chart: null, series: null, smaSeries: null });
   const [isLoading, setIsLoading] = useState(true);
 
   useImperativeHandle(ref, () => ({
@@ -51,16 +53,32 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     },
   }));
 
+  // SMA Calculation
+  const calculateSma = (data: CandlestickData<Time>[], count: number): LineData<Time>[] => {
+    const smaData: LineData<Time>[] = [];
+    for (let i = count - 1; i < data.length; i++) {
+      let sum = 0;
+      for (let j = 0; j < count; j++) {
+        sum += data[i - j].close;
+      }
+      smaData.push({
+        time: data[i].time,
+        value: sum / count,
+      });
+    }
+    return smaData;
+  };
+
   useEffect(() => {
     let isMounted = true;
     let ws: WebSocket | null = null;
+    const historicalData: CandlestickData<Time>[] = [];
     
     const initializeChart = async () => {
       if (!chartContainerRef.current) return;
       
       setIsLoading(true);
 
-      // If a chart instance exists, remove it before creating a new one
       if (chartRef.current.chart) {
         chartRef.current.chart.remove();
         chartRef.current.chart = null;
@@ -95,10 +113,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         wickDownColor: '#E74C3C',
         wickUpColor: '#2ECC71',
       });
-      
-      chartRef.current = { chart, series: candleSeries };
 
-      // Fetch historical data
+      const smaSeries = chart.addLineSeries({
+        color: 'rgba(255, 193, 7, 1)',
+        lineWidth: 2,
+      });
+      
+      chartRef.current = { chart, series: candleSeries, smaSeries };
+
       try {
         const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=150`);
         if (!response.ok) {
@@ -113,13 +135,16 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           close: parseFloat(item[4]),
         }));
 
+        historicalData.push(...chartData);
+
         if (isMounted) {
           candleSeries.setData(chartData);
+          const smaData = calculateSma(chartData, 20);
+          smaSeries.setData(smaData);
           chart.timeScale().fitContent();
           setIsLoading(false);
         }
 
-        // Setup WebSocket for live data
         ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${interval}`);
         ws.onmessage = (event) => {
           if (!isMounted) return;
@@ -132,8 +157,24 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
             low: parseFloat(kline.l),
             close: parseFloat(kline.c),
           };
+
+          const lastCandle = historicalData[historicalData.length - 1];
+          if (candle.time === lastCandle.time) {
+            historicalData[historicalData.length - 1] = candle;
+          } else {
+            historicalData.push(candle);
+            historicalData.shift(); // Keep array size constant
+          }
+          
           if (candleSeries) {
             candleSeries.update(candle);
+          }
+
+          if (smaSeries) {
+              const lastSmaPoint = calculateSma(historicalData, 20).pop();
+              if(lastSmaPoint) {
+                smaSeries.update(lastSmaPoint);
+              }
           }
         };
 
