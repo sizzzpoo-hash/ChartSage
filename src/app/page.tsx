@@ -65,7 +65,7 @@ export default function Home() {
             <div>
               <CardTitle>Trading Chart</CardTitle>
               <CardDescription>
-                Live BTC/USD data. Press the button below to analyze.
+                Sample BTC/USD data. Press the button below to analyze.
               </CardDescription>
             </div>
             <Button onClick={handleAnalyze} disabled={isLoading} size="lg">
