@@ -1,9 +1,12 @@
+'use client';
+
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from '@/components/ui/card';
 import { Settings } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -11,8 +14,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import withAuth from '@/components/auth/with-auth';
+import { useAuth } from '@/hooks/use-auth';
 
-export default function SettingsPage() {
+function SettingsPage() {
+  const { user } = useAuth();
+
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-6">
       <div className="flex items-center gap-2">
@@ -24,24 +31,17 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Profile</CardTitle>
             <CardDescription>
-              Manage your personal information.
+              This is your account information.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" defaultValue="John Doe" />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue="john.doe@example.com" />
+                <Input id="email" type="email" value={user?.email || ''} disabled />
               </div>
             </form>
           </CardContent>
-          <CardFooter className="border-t px-6 py-4">
-            <Button>Save Changes</Button>
-          </CardFooter>
         </Card>
 
         <Card>
@@ -72,8 +72,13 @@ export default function SettingsPage() {
               <Switch id="dark-mode" checked disabled />
             </div>
           </CardContent>
+          <CardFooter className="border-t px-6 py-4">
+            <Button>Save Preferences</Button>
+          </CardFooter>
         </Card>
       </div>
     </div>
   );
 }
+
+export default withAuth(SettingsPage);

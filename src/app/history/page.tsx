@@ -1,3 +1,5 @@
+'use client';
+
 import { reviewAnalysisHistory } from '@/ai/flows/review-analysis-history';
 import {
   Card,
@@ -16,11 +18,29 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { History } from 'lucide-react';
+import withAuth from '@/components/auth/with-auth';
+import { useEffect, useState } from 'react';
+import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
 
-export const dynamic = 'force-dynamic';
 
-export default async function HistoryPage() {
-  const history = await reviewAnalysisHistory({ userId: 'default-user' });
+function HistoryPage() {
+  const [history, setHistory] = useState<ReviewAnalysisHistoryOutput>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function getHistory() {
+      try {
+        const historyData = await reviewAnalysisHistory({ userId: 'default-user' });
+        setHistory(historyData);
+      } catch (error) {
+        console.error('Failed to fetch history', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    getHistory();
+  }, []);
+
 
   return (
     <Card>
@@ -45,7 +65,13 @@ export default async function HistoryPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {history.length > 0 ? (
+              {loading ? (
+                 <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    Loading history...
+                  </TableCell>
+                </TableRow>
+              ) : history.length > 0 ? (
                 history.map((item, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">
@@ -72,3 +98,5 @@ export default async function HistoryPage() {
     </Card>
   );
 }
+
+export default withAuth(HistoryPage);
