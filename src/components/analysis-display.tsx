@@ -5,7 +5,7 @@ import { ArrowDownRight, ArrowUpRight, Target, XCircle, Sparkles } from 'lucide-
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { useState } from 'react';
-import { Skeleton } from './ui/skeleton';
+import { AnalysisSkeleton } from './analysis-skeleton';
 
 type AnalysisDisplayProps = {
   result: AnalyzeChartAndGenerateTradeSignalOutput;
