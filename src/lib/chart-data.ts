@@ -1,5 +1,6 @@
 import { CandlestickData, UTCTimestamp } from 'lightweight-charts';
 
+// This file is no longer used for the main chart but is kept for potential future use or testing.
 function generateData(count: number, start: Date): CandlestickData<UTCTimestamp>[] {
   const data: CandlestickData<UTCTimestamp>[] = [];
   let current = start.getTime() / 1000;
