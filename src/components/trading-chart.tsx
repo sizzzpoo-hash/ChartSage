@@ -32,8 +32,11 @@ type BinanceKline = [
   string  // Ignore
 ];
 
+type TradingChartProps = {
+  symbol: string;
+};
 
-const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
+const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<{
     chart: IChartApi | null;
@@ -54,7 +57,15 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
     let ws: WebSocket | null = null;
 
     const initializeChart = async () => {
-      if (!chartContainerRef.current || !isMounted) return;
+      if (!chartContainerRef.current) return;
+      
+      setIsLoading(true);
+
+      // Clear previous chart instance if it exists
+      if (chartRef.current.chart) {
+        chartRef.current.chart.remove();
+        chartRef.current.chart = null;
+      }
 
       chart = createChart(chartContainerRef.current, {
         layout: {
@@ -90,7 +101,7 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
 
       // Fetch historical data
       try {
-        const response = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=150');
+        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=150`);
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
@@ -110,7 +121,7 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
         }
 
         // Setup WebSocket for live data
-        ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@kline_1d');
+        ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_1d`);
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data);
           const kline = message.k;
@@ -128,8 +139,7 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
 
       } catch (error) {
         console.error("Failed to fetch Binance data:", error);
-        // Fallback to initialChartData can be implemented here if needed
-        if(isMounted) setIsLoading(false); // Stop loading even if there's an error
+        if(isMounted) setIsLoading(false);
       }
       
       const handleResize = () => {
@@ -146,7 +156,8 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
         chart?.remove();
       };
     };
-
+    
+    // Debounce initialization to avoid rapid re-renders
     const timeoutId = setTimeout(() => {
         if (isMounted) {
             initializeChart();
@@ -159,7 +170,7 @@ const TradingChart = forwardRef<TradingChartHandle>((_props, ref) => {
       ws?.close();
       chartRef.current.chart?.remove();
     };
-  }, []);
+  }, [symbol]);
 
   return (
     <div className="relative h-[500px] w-full">

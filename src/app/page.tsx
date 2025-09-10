@@ -10,11 +10,21 @@ import { useToast } from '@/hooks/use-toast';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
 import { AnalysisDisplay } from '@/components/analysis-display';
 import { AnalysisSkeleton } from '@/components/analysis-skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 
 export default function Home() {
   const chartRef = React.useRef<TradingChartHandle>(null);
   const [analysisResult, setAnalysisResult] = React.useState<AnalyzeChartAndGenerateTradeSignalOutput | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [symbol, setSymbol] = React.useState('BTCUSDT');
   const { toast } = useToast();
 
   const handleAnalyze = async () => {
@@ -61,12 +71,24 @@ export default function Home() {
     <div className="grid flex-1 items-start gap-4 md:gap-8 lg:grid-cols-3 xl:grid-cols-3">
       <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <div>
+          <CardHeader className="flex-row items-start justify-between">
+            <div className='flex flex-col gap-2'>
               <CardTitle>Trading Chart</CardTitle>
               <CardDescription>
-                Live BTC/USDT data from Binance. Press the button below to analyze.
+                Live {symbol} data from Binance.
               </CardDescription>
+              <Select value={symbol} onValueChange={setSymbol}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select a pair" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cryptoPairs.map((pair) => (
+                    <SelectItem key={pair} value={pair}>
+                      {pair}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={handleAnalyze} disabled={isLoading} size="lg">
               <Zap className="mr-2 h-4 w-4" />
@@ -74,7 +96,7 @@ export default function Home() {
             </Button>
           </CardHeader>
           <CardContent>
-            <TradingChart ref={chartRef} />
+            <TradingChart ref={chartRef} symbol={symbol} />
           </CardContent>
           <CardFooter>
             <p className="text-xs text-muted-foreground">
