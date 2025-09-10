@@ -57,15 +57,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     let ws: WebSocket | null = null;
 
     const initializeChart = async () => {
-      if (!chartContainerRef.current) return;
+      if (!chartContainerRef.current || !isMounted) return;
       
       setIsLoading(true);
-
-      // Clear previous chart instance if it exists
-      if (chartRef.current.chart) {
-        chartRef.current.chart.remove();
-        chartRef.current.chart = null;
-      }
 
       chart = createChart(chartContainerRef.current, {
         layout: {
@@ -123,6 +117,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         // Setup WebSocket for live data
         ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_1d`);
         ws.onmessage = (event) => {
+          if (!isMounted) return;
           const message = JSON.parse(event.data);
           const kline = message.k;
           const candle: CandlestickData<Time> = {
@@ -132,7 +127,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
             low: parseFloat(kline.l),
             close: parseFloat(kline.c),
           };
-          if (isMounted && candleSeries) {
+          if (candleSeries) {
             candleSeries.update(candle);
           }
         };
@@ -141,34 +136,26 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         console.error("Failed to fetch Binance data:", error);
         if(isMounted) setIsLoading(false);
       }
-      
-      const handleResize = () => {
-        if (chartContainerRef.current) {
-          chart?.applyOptions({ width: chartContainerRef.current.clientWidth });
-        }
-      };
-
-      window.addEventListener('resize', handleResize);
-
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        ws?.close();
-        chart?.remove();
-      };
     };
     
-    // Debounce initialization to avoid rapid re-renders
-    const timeoutId = setTimeout(() => {
-        if (isMounted) {
-            initializeChart();
-        }
-    }, 100);
+    initializeChart();
+    
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current.chart) {
+        chartRef.current.chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
 
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
       ws?.close();
-      chartRef.current.chart?.remove();
+      if (chartRef.current.chart) {
+        chartRef.current.chart.remove();
+        chartRef.current.chart = null;
+      }
     };
   }, [symbol]);
 
