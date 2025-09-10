@@ -16,10 +16,8 @@ export async function getAiAnalysis(
   try {
     const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, question, existingAnalysis });
     
-    // Don't await this, let it run in the background if it's a new analysis
-    if (!question) {
-      saveAnalysisResult(result, symbol, chartDataUri);
-    }
+    // Save the analysis result to Firestore
+    await saveAnalysisResult(result, symbol, chartDataUri);
     
     return { success: true, data: result };
   } catch (error) {
