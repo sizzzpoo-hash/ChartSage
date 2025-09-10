@@ -17,10 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import withAuth from '@/components/auth/with-auth';
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 
-export default function Home() {
+function Home() {
   const chartRef = React.useRef<TradingChartHandle>(null);
   const [analysisResult, setAnalysisResult] = React.useState<AnalyzeChartAndGenerateTradeSignalOutput | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -52,7 +53,7 @@ export default function Home() {
     setIsLoading(true);
     setAnalysisResult(null);
 
-    const result = await getAiAnalysis(dataUri);
+    const result = await getAiAnalysis(dataUri, symbol);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
@@ -137,3 +138,5 @@ export default function Home() {
     </div>
   );
 }
+
+export default withAuth(Home);

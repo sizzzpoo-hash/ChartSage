@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { getAnalysisHistory } from '@/lib/firestore';
 import {z} from 'genkit';
 
 const ReviewAnalysisHistoryInputSchema = z.object({
@@ -35,23 +36,8 @@ const reviewAnalysisHistoryFlow = ai.defineFlow({
     inputSchema: ReviewAnalysisHistoryInputSchema,
     outputSchema: ReviewAnalysisHistoryOutputSchema,
   },
-  async input => {
-    // TODO: Implement database retrieval logic here; this is just dummy data.
-    const dummyData: ReviewAnalysisHistoryOutput = [
-      {
-        timestamp: new Date().toISOString(),
-        chartName: 'BTC/USD',
-        analysisSummary: 'AI predicts a bullish trend based on recent patterns.',
-        tradeSignal: 'Buy at $65,000, TP: $67,000, SL: $64,000',
-      },
-      {
-        timestamp: new Date(Date.now() - 86400000).toISOString(), // Yesterday
-        chartName: 'ETH/USD',
-        analysisSummary: 'ETH showing signs of consolidation; neutral outlook.',
-        tradeSignal: 'Hold current positions, await breakout above $3,200 or below $3,000.',
-      },
-    ];
-
-    return dummyData;
+  async ({ userId }) => {
+    const history = await getAnalysisHistory(userId);
+    return history;
   }
 );

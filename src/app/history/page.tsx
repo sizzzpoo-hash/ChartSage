@@ -21,16 +21,21 @@ import { History } from 'lucide-react';
 import withAuth from '@/components/auth/with-auth';
 import { useEffect, useState } from 'react';
 import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
+import { useAuth } from '@/hooks/use-auth';
 
 
 function HistoryPage() {
+  const { user } = useAuth();
   const [history, setHistory] = useState<ReviewAnalysisHistoryOutput>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function getHistory() {
+      if (!user) return;
+
+      setLoading(true);
       try {
-        const historyData = await reviewAnalysisHistory({ userId: 'default-user' });
+        const historyData = await reviewAnalysisHistory({ userId: user.uid });
         setHistory(historyData);
       } catch (error) {
         console.error('Failed to fetch history', error);
@@ -39,7 +44,7 @@ function HistoryPage() {
       }
     }
     getHistory();
-  }, []);
+  }, [user]);
 
 
   return (
