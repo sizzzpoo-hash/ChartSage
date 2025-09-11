@@ -37,6 +37,7 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
     lower: z.number(),
   }).optional().describe('The latest Bollinger Bands values.'),
   higherTimeframe: z.string().optional().describe("The higher timeframe to consider for the primary trend (e.g., '1w' for a '1d' chart)."),
+  isPriceAboveHtfSma: z.boolean().optional().describe("Whether the current price is above the 20-period SMA on the higher timeframe. This determines the primary trend."),
   indicatorConfig: z.any().optional().describe('The configuration for the technical indicators.'),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
   existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
@@ -68,15 +69,23 @@ Your primary source of information should be the raw OHLCV data provided. Use th
 **Multi-Timeframe Strategy:**
 {{#if higherTimeframe}}
 The primary chart should be analyzed in the context of the trend on the {{higherTimeframe}} timeframe.
-1.  **Establish Primary Trend:** First, determine the primary trend on the higher timeframe (e.g., weekly). A simple way is to check if the price is generally above or below a long-term moving average (like the 20-period SMA shown).
-2.  **Filter Trades:** Use the primary trend to filter your signals. If the primary trend is bullish, give more weight to bullish patterns and signals on the main chart. If the primary trend is bearish, prioritize bearish signals. Avoid counter-trend trades unless there is a very strong reversal signal.
+1.  **Establish Primary Trend:** The primary trend on the {{higherTimeframe}} timeframe has been determined for you.
+    {{#if isPriceAboveHtfSma}}
+    The primary trend is **BULLISH** because the price is above the 20-period SMA on the {{higherTimeframe}} chart.
+    {{else}}
+    The primary trend is **BEARISH** because the price is below the 20-period SMA on the {{higherTimeframe}} chart.
+    {{/if}}
+2.  **Filter Trades:** Use this primary trend to strictly filter your signals.
+    *   If the primary trend is **BULLISH**, you should only look for and generate **BULLISH** signals on the main chart. Ignore all bearish patterns and signals.
+    *   If the primary trend is **BEARISH**, you should only look for and generate **BEARISH** signals on the main chart. Ignore all bullish patterns and signals.
+    *   Do not generate counter-trend trade signals.
 {{/if}}
 
 {{#if question}}
 You are refining a previous analysis based on a user's question.
 Previous Analysis: {{{existingAnalysis}}}
 User Question: {{{question}}}
-Refine the analysis and trade signal based on the question. Do not repeat the previous analysis. Provide a new, more detailed analysis that directly addresses the user's question, and adjust the trade signal if necessary.
+Refine the analysis and trade signal based on the question. Do not repeat the previous analysis. Provide a new, more detailed analysis that directly addresses the user's question, and adjust the trade signal if necessary, while still adhering to the primary trend filter.
 {{else}}
 Analyze the provided candlestick chart image and the corresponding raw OHLCV data to generate a concise market analysis and a trade signal.
 {{/if}}
@@ -97,8 +106,8 @@ Consider the following technical indicators in your analysis, using the specifie
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, filtered through the lens of the higher timeframe trend. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI, MACD, and Bollinger Bands values in your analysis if available.
-2.  Trade Signal:
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, strictly filtered through the lens of the primary timeframe trend. Base price levels and calculations on the raw OHLCV data.
+2.  Trade Signal: A trade signal that aligns with the primary trend.
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).
     *   Stop Loss Level: The recommended stop loss level.

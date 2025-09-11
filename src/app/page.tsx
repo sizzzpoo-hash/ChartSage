@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Bot, Check, Layers, Settings, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import TradingChart, { type TradingChartHandle, type MacdData, type BollingerBandsData } from '@/components/trading-chart';
+import TradingChart, { type TradingChartHandle, type MacdData, type BollingerBandsData, type OhlcvData } from '@/components/trading-chart';
 import { getAiAnalysis } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
@@ -31,6 +31,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import type { BinanceKline } from '@/components/trading-chart';
+import { calculateSma } from '@/lib/indicators';
 
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
@@ -45,6 +47,7 @@ function Home() {
   const [symbol, setSymbol] = React.useState('BTCUSDT');
   const [interval, setInterval] = React.useState('1d');
   const [higherTimeframe, setHigherTimeframe] = React.useState<string | undefined>(undefined);
+  const [isPriceAboveHtfSma, setIsPriceAboveHtfSma] = React.useState<boolean | undefined>(undefined);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -54,6 +57,54 @@ function Home() {
     macd: { visible: false, fast: 12, slow: 26, signal: 9 },
     bollinger: { visible: false, period: 20, stdDev: 2 },
   });
+  
+  React.useEffect(() => {
+    const fetchHtfData = async () => {
+      if (!higherTimeframe) {
+        setIsPriceAboveHtfSma(undefined);
+        return;
+      }
+      try {
+        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${higherTimeframe}&limit=21`);
+        if (!response.ok) throw new Error('Failed to fetch higher timeframe data');
+        const data: BinanceKline[] = await response.json();
+        
+        if (data.length < 20) {
+          setIsPriceAboveHtfSma(undefined);
+          return;
+        }
+
+        const htfOhlcv: OhlcvData[] = data.map(item => ({
+          time: new Date(item[0]).toISOString(),
+          open: parseFloat(item[1]),
+          high: parseFloat(item[2]),
+          low: parseFloat(item[3]),
+          close: parseFloat(item[4]),
+        }));
+
+        const sma20 = calculateSma(htfOhlcv, 20);
+        const lastSmaValue = sma20[sma20.length - 1];
+        const lastClose = htfOhlcv[htfOhlcv.length - 1].close;
+
+        if (lastSmaValue && 'value' in lastSmaValue) {
+          setIsPriceAboveHtfSma(lastClose > lastSmaValue.value);
+        } else {
+           setIsPriceAboveHtfSma(undefined);
+        }
+      } catch (error) {
+        console.error("Failed to process higher timeframe data:", error);
+        setIsPriceAboveHtfSma(undefined);
+        toast({
+          variant: 'destructive',
+          title: 'HTF Data Error',
+          description: 'Could not fetch or process data for the selected higher timeframe.',
+        });
+      }
+    };
+    
+    fetchHtfData();
+  }, [higherTimeframe, symbol, toast]);
+
 
   const handleIndicatorToggle = (indicator: 'sma' | 'rsi' | 'macd' | 'bollinger') => {
     setIndicators((prev) => ({ 
@@ -129,7 +180,20 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, bollingerData, higherTimeframe, indicatorConfig, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(
+      dataUri, 
+      ohlcvData, 
+      symbol, 
+      user.uid, 
+      rsiData, 
+      macdData, 
+      bollingerData, 
+      higherTimeframe, 
+      isPriceAboveHtfSma,
+      indicatorConfig, 
+      question, 
+      analysisResult?.analysis
+    );
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
@@ -238,9 +302,9 @@ function Home() {
                          <div className='space-y-2'>
                           <Label>MACD Parameters</Label>
                           <div className="grid grid-cols-3 gap-2">
-                             <Input id="macd-fast" type="number" value={indicators.macd.fast} onChange={(e) => handleIndicatorParamChange('macd', 'fast', e.target.value)} disabled={!indicators.macd.visible} />
-                             <Input id="macd-slow" type="number" value={indicators.macd.slow} onChange={(e) => handleIndicatorParamChange('macd', 'slow', e.target.value)} disabled={!indicators.macd.visible} />
-                             <Input id="macd-signal" type="number" value={indicators.macd.signal} onChange={(e) => handleIndicatorParamChange('macd', 'signal', e.target.value)} disabled={!indicators.macd.visible} />
+                             <Input id="macd-fast" type="number" placeholder="Fast" value={indicators.macd.fast} onChange={(e) => handleIndicatorParamChange('macd', 'fast', e.target.value)} disabled={!indicators.macd.visible} />
+                             <Input id="macd-slow" type="number" placeholder="Slow" value={indicators.macd.slow} onChange={(e) => handleIndicatorParamChange('macd', 'slow', e.target.value)} disabled={!indicators.macd.visible} />
+                             <Input id="macd-signal" type="number" placeholder="Signal" value={indicators.macd.signal} onChange={(e) => handleIndicatorParamChange('macd', 'signal', e.target.value)} disabled={!indicators.macd.visible} />
                           </div>
                         </div>
                       </div>

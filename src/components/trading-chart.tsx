@@ -15,6 +15,8 @@ import {
 } from 'lightweight-charts';
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { Skeleton } from './ui/skeleton';
+import { calculateSma } from '@/lib/indicators';
+
 
 export type OhlcvData = {
   time: string;
@@ -45,7 +47,7 @@ export type TradingChartHandle = {
 };
 
 // Binance API returns data in this format
-type BinanceKline = [
+export type BinanceKline = [
   number, // Kline open time
   string, // Open price
   string, // High price
@@ -150,28 +152,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         return undefined;
     }
   }));
-
-  // SMA Calculation
-  const calculateSma = (data: (CandlestickData<Time> | OhlcvData)[], count: number): (LineData<Time> | WhitespaceData<Time>)[] => {
-    const smaData: (LineData<Time> | WhitespaceData<Time>)[] = [];
-    for(let i=0; i< count -1; i++) {
-        const time = 'time' in data[i] && typeof data[i].time === 'string' ? new Date(data[i].time as string).getTime() / 1000 : data[i].time;
-        smaData.push({ time: time as UTCTimestamp });
-    }
-
-    for (let i = count - 1; i < data.length; i++) {
-      let sum = 0;
-      for (let j = 0; j < count; j++) {
-        sum += data[i - j].close;
-      }
-      const time = 'time' in data[i] && typeof data[i].time === 'string' ? new Date(data[i].time as string).getTime() / 1000 : data[i].time;
-      smaData.push({
-        time: time as UTCTimestamp,
-        value: sum / count,
-      });
-    }
-    return smaData;
-  };
 
   // Bollinger Bands Calculation
   const calculateBollingerBands = (data: OhlcvData[], period: number, stdDev: number): BollingerBandsCalculatedData => {
@@ -381,6 +361,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
        const rsiSeries = rsiConfig.visible ? chart.addLineSeries({
         color: 'rgba(219, 138, 222, 1)',
         lineWidth: 2,
+        priceScaleId: 'left',
         pane: ++currentPane,
        }) : null;
        
@@ -394,8 +375,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
        }
        
        const macdLineSeries = macdConfig.visible ? chart.addLineSeries({ color: 'blue', lineWidth: 2, pane: ++currentPane }) : null;
-       const macdSignalSeries = macdConfig.visible ? chart.addLineSeries({ color: 'orange', lineWidth: 2, pane: ++currentPane }) : null;
-       const macdHistSeries = macdConfig.visible ? chart.addHistogramSeries({ pane: ++currentPane }) : null;
+       const macdSignalSeries = macdConfig.visible ? chart.addLineSeries({ color: 'orange', lineWidth: 2, pane: currentPane }) : null;
+       const macdHistSeries = macdConfig.visible ? chart.addHistogramSeries({ pane: currentPane }) : null;
 
       if(macdLineSeries) {
          chart.priceScale('left').applyOptions({
@@ -524,9 +505,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
               const lastMacdPoint = newMacdData.macdLine[newMacdData.macdLine.length-1];
               const lastSignalPoint = newMacdData.signalLine[newMacdData.signalLine.length-1];
               const lastHistPoint = newMacdData.histogram[newMacdData.histogram.length-1];
-              if(lastMacdPoint) macdLineSeries.update(lastMacdPoint);
-              if(lastSignalPoint) macdSignalSeries.update(lastSignalPoint);
-              if(lastHistPoint) macdHistSeries.update(lastHistPoint);
+              if(lastMacdPoint) macdLineSeries.update(lastMacdPoint as LineData);
+              if(lastSignalPoint) macdSignalSeries.update(lastSignalPoint as LineData);
+              if(lastHistPoint) macdHistSeries.update(lastHistPoint as HistogramData);
           }
            if(bollingerBandsConfig.visible && bbUpperSeries && bbMiddleSeries && bbLowerSeries) {
                 const newBbData = calculateBollingerBands(updatedOhlcv, bollingerBandsConfig.period, bollingerBandsConfig.stdDev);

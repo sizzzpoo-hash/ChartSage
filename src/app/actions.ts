@@ -14,6 +14,7 @@ export async function getAiAnalysis(
   macd: MacdData | undefined,
   bollingerBands: BollingerBandsData | undefined,
   higherTimeframe: string | undefined,
+  isPriceAboveHtfSma: boolean | undefined,
   indicatorConfig: any,
   question?: string, 
   existingAnalysis?: string
@@ -32,13 +33,14 @@ export async function getAiAnalysis(
       rsi, 
       macd, 
       bollingerBands,
-      higherTimeframe, 
+      higherTimeframe,
+      isPriceAboveHtfSma,
       indicatorConfig,
       question, 
       existingAnalysis 
     });
     
-    // Save the analysis result to Firestore ONLY after a successful analysis
+    // Save the analysis result to Firestore ONLY after a successful analysis and if it's not a follow-up question
     if (!question) {
       await saveAnalysisResult(result, symbol, chartDataUri, userId);
     }
