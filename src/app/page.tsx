@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Bot, Check, Layers, Settings, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import TradingChart, { type TradingChartHandle, type MacdData } from '@/components/trading-chart';
+import TradingChart, { type TradingChartHandle, type MacdData, type BollingerBandsData } from '@/components/trading-chart';
 import { getAiAnalysis } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
@@ -52,17 +52,18 @@ function Home() {
     sma: { visible: true, period: 20 },
     rsi: { visible: true, period: 14 },
     macd: { visible: false, fast: 12, slow: 26, signal: 9 },
+    bollinger: { visible: false, period: 20, stdDev: 2 },
   });
 
-  const handleIndicatorToggle = (indicator: 'sma' | 'rsi' | 'macd') => {
+  const handleIndicatorToggle = (indicator: 'sma' | 'rsi' | 'macd' | 'bollinger') => {
     setIndicators((prev) => ({ 
       ...prev, 
       [indicator]: { ...prev[indicator], visible: !prev[indicator].visible }
     }));
   };
   
-  const handleIndicatorParamChange = (indicator: 'sma' | 'rsi' | 'macd', param: string, value: string) => {
-    const numValue = parseInt(value, 10);
+  const handleIndicatorParamChange = (indicator: 'sma' | 'rsi' | 'macd' | 'bollinger', param: string, value: string) => {
+    const numValue = param === 'stdDev' ? parseFloat(value) : parseInt(value, 10);
     if (isNaN(numValue) || numValue <= 0) return;
 
     setIndicators(prev => ({
@@ -112,11 +113,13 @@ function Home() {
 
     const rsiData = indicators.rsi.visible ? chartRef.current.getRsiData() : undefined;
     const macdData = indicators.macd.visible ? chartRef.current.getMacdData() : undefined;
+    const bollingerData = indicators.bollinger.visible ? chartRef.current.getBollingerBandsData() : undefined;
     
     const indicatorConfig = {
       sma: indicators.sma,
       rsi: indicators.rsi,
       macd: indicators.macd,
+      bollinger: indicators.bollinger,
     };
 
     const dataUri = canvas.toDataURL('image/png');
@@ -126,7 +129,7 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, higherTimeframe, indicatorConfig, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, bollingerData, higherTimeframe, indicatorConfig, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
@@ -193,7 +196,7 @@ function Home() {
                         <span>Indicator Settings</span>
                       </Button>
                     </SheetTrigger>
-                    <SheetContent>
+                    <SheetContent className='overflow-y-auto'>
                       <SheetHeader>
                         <SheetTitle>Indicator Settings</SheetTitle>
                         <SheetDescription>
@@ -204,6 +207,19 @@ function Home() {
                         <div className="flex items-center justify-between">
                             <Label htmlFor="sma-visible">20-period SMA</Label>
                             <Switch id="sma-visible" checked={indicators.sma.visible} onCheckedChange={() => handleIndicatorToggle('sma')} />
+                        </div>
+                        <Separator />
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="bollinger-visible">Bollinger Bands</Label>
+                            <Switch id="bollinger-visible" checked={indicators.bollinger.visible} onCheckedChange={() => handleIndicatorToggle('bollinger')} />
+                        </div>
+                        <div className='space-y-2'>
+                          <Label htmlFor="bollinger-period">BB Period</Label>
+                          <Input id="bollinger-period" type="number" value={indicators.bollinger.period} onChange={(e) => handleIndicatorParamChange('bollinger', 'period', e.target.value)} disabled={!indicators.bollinger.visible} />
+                        </div>
+                         <div className='space-y-2'>
+                          <Label htmlFor="bollinger-stdDev">BB Std. Dev.</Label>
+                          <Input id="bollinger-stdDev" type="number" step="0.1" value={indicators.bollinger.stdDev} onChange={(e) => handleIndicatorParamChange('bollinger', 'stdDev', e.target.value)} disabled={!indicators.bollinger.visible} />
                         </div>
                         <Separator />
                         <div className="flex items-center justify-between">
@@ -233,7 +249,7 @@ function Home() {
                 </div>
                  <div className="grid w-full max-w-sm items-center gap-1.5">
                   <Label htmlFor="higherTimeframe">Higher Timeframe</Label>
-                  <Select value={higherTimeframe} onValuecha nge={(value) => setHigherTimeframe(value === 'none' ? undefined : value)} name="higherTimeframe">
+                  <Select value={higherTimeframe} onValueChange={(value) => setHigherTimeframe(value === 'none' ? undefined : value)} name="higherTimeframe">
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Select HTF" />
                     </SelectTrigger>
@@ -262,6 +278,7 @@ function Home() {
               smaConfig={indicators.sma}
               rsiConfig={indicators.rsi}
               macdConfig={indicators.macd}
+              bollingerBandsConfig={indicators.bollinger}
             />
           </CardContent>
           <CardFooter>

@@ -2,7 +2,7 @@
 
 import { analyzeChartAndGenerateTradeSignal } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
 import { saveAnalysisResult } from '@/lib/firestore';
-import type { OhlcvData, MacdData } from '@/components/trading-chart';
+import type { OhlcvData, MacdData, BollingerBandsData } from '@/components/trading-chart';
 
 
 export async function getAiAnalysis(
@@ -12,6 +12,7 @@ export async function getAiAnalysis(
   userId: string,
   rsi: number | undefined,
   macd: MacdData | undefined,
+  bollingerBands: BollingerBandsData | undefined,
   higherTimeframe: string | undefined,
   indicatorConfig: any,
   question?: string, 
@@ -28,8 +29,9 @@ export async function getAiAnalysis(
     const result = await analyzeChartAndGenerateTradeSignal({ 
       chartDataUri, 
       ohlcvData, 
-      rsi: rsi, 
-      macd: macd, 
+      rsi, 
+      macd, 
+      bollingerBands,
       higherTimeframe, 
       indicatorConfig,
       question, 
@@ -37,7 +39,9 @@ export async function getAiAnalysis(
     });
     
     // Save the analysis result to Firestore ONLY after a successful analysis
-    await saveAnalysisResult(result, symbol, chartDataUri, userId);
+    if (!question) {
+      await saveAnalysisResult(result, symbol, chartDataUri, userId);
+    }
     
     return { success: true, data: result };
   } catch (error) {

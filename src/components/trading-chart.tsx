@@ -11,6 +11,7 @@ import {
   LineData,
   WhitespaceData,
   HistogramData,
+  LineStyle,
 } from 'lightweight-charts';
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { Skeleton } from './ui/skeleton';
@@ -29,11 +30,18 @@ export type MacdData = {
   histogram: number;
 };
 
+export type BollingerBandsData = {
+    upper: number;
+    middle: number;
+    lower: number;
+};
+
 export type TradingChartHandle = {
   takeScreenshot: () => HTMLCanvasElement | undefined;
   getOhlcvData: () => OhlcvData[];
   getRsiData: () => number | undefined;
   getMacdData: () => MacdData | undefined;
+  getBollingerBandsData: () => BollingerBandsData | undefined;
 };
 
 // Binance API returns data in this format
@@ -54,7 +62,7 @@ type BinanceKline = [
 
 type IndicatorConfig = { visible: boolean; period?: number; };
 type MacdIndicatorConfig = { visible: boolean; fast?: number; slow?: number; signal?: number; };
-
+type BollingerBandsConfig = { visible: boolean; period: number; stdDev: number; };
 
 type TradingChartProps = {
   symbol: string;
@@ -62,6 +70,7 @@ type TradingChartProps = {
   smaConfig: IndicatorConfig & { period: number };
   rsiConfig: IndicatorConfig & { period: number };
   macdConfig: MacdIndicatorConfig & { fast: number; slow: number; signal: number };
+  bollingerBandsConfig: BollingerBandsConfig;
 };
 
 type MacdCalculatedData = {
@@ -70,7 +79,14 @@ type MacdCalculatedData = {
   histogram: (HistogramData | WhitespaceData)[];
 };
 
-const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval, smaConfig, rsiConfig, macdConfig }, ref) => {
+type BollingerBandsCalculatedData = {
+    upper: (LineData | WhitespaceData)[];
+    middle: (LineData | WhitespaceData)[];
+    lower: (LineData | WhitespaceData)[];
+};
+
+
+const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval, smaConfig, rsiConfig, macdConfig, bollingerBandsConfig }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<{
     chart: IChartApi | null;
@@ -80,12 +96,16 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     macdLineSeries: ISeriesApi<'Line'> | null;
     macdSignalSeries: ISeriesApi<'Line'> | null;
     macdHistSeries: ISeriesApi<'Histogram'> | null;
-  }>({ chart: null, series: null, smaSeries: null, rsiSeries: null, macdLineSeries: null, macdSignalSeries: null, macdHistSeries: null });
+    bbUpperSeries: ISeriesApi<'Line'> | null;
+    bbMiddleSeries: ISeriesApi<'Line'> | null;
+    bbLowerSeries: ISeriesApi<'Line'> | null;
+  }>({ chart: null, series: null, smaSeries: null, rsiSeries: null, macdLineSeries: null, macdSignalSeries: null, macdHistSeries: null, bbUpperSeries: null, bbMiddleSeries: null, bbLowerSeries: null });
 
   const [isLoading, setIsLoading] = useState(true);
   const [ohlcvData, setOhlcvData] = useState<OhlcvData[]>([]);
   const [fullRsiData, setFullRsiData] = useState<(LineData | WhitespaceData)[]>([]);
   const [fullMacdData, setFullMacdData] = useState<MacdCalculatedData>({ macdLine: [], signalLine: [], histogram: [] });
+  const [fullBollingerBandsData, setFullBollingerBandsData] = useState<BollingerBandsCalculatedData>({ upper: [], middle: [], lower: [] });
 
 
   useImperativeHandle(ref, () => ({
@@ -115,23 +135,73 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         }
       }
       return undefined;
+    },
+    getBollingerBandsData: () => {
+        const lastUpper = fullBollingerBandsData.upper.slice().reverse().find(d => 'value' in d) as LineData | undefined;
+        const lastMiddle = fullBollingerBandsData.middle.slice().reverse().find(d => 'value' in d) as LineData | undefined;
+        const lastLower = fullBollingerBandsData.lower.slice().reverse().find(d => 'value' in d) as LineData | undefined;
+        if (lastUpper && lastMiddle && lastLower) {
+            return {
+                upper: lastUpper.value,
+                middle: lastMiddle.value,
+                lower: lastLower.value,
+            }
+        }
+        return undefined;
     }
   }));
 
   // SMA Calculation
-  const calculateSma = (data: CandlestickData<Time>[], count: number): LineData<Time>[] => {
-    const smaData: LineData<Time>[] = [];
+  const calculateSma = (data: (CandlestickData<Time> | OhlcvData)[], count: number): (LineData<Time> | WhitespaceData<Time>)[] => {
+    const smaData: (LineData<Time> | WhitespaceData<Time>)[] = [];
+    for(let i=0; i< count -1; i++) {
+        const time = 'time' in data[i] && typeof data[i].time === 'string' ? new Date(data[i].time as string).getTime() / 1000 : data[i].time;
+        smaData.push({ time: time as UTCTimestamp });
+    }
+
     for (let i = count - 1; i < data.length; i++) {
       let sum = 0;
       for (let j = 0; j < count; j++) {
         sum += data[i - j].close;
       }
+      const time = 'time' in data[i] && typeof data[i].time === 'string' ? new Date(data[i].time as string).getTime() / 1000 : data[i].time;
       smaData.push({
-        time: data[i].time,
+        time: time as UTCTimestamp,
         value: sum / count,
       });
     }
     return smaData;
+  };
+
+  // Bollinger Bands Calculation
+  const calculateBollingerBands = (data: OhlcvData[], period: number, stdDev: number): BollingerBandsCalculatedData => {
+    if(data.length < period) return { upper: [], middle: [], lower: [] };
+
+    const middleBandData = calculateSma(data, period);
+    const upperBandData: (LineData | WhitespaceData)[] = [];
+    const lowerBandData: (LineData | WhitespaceData)[] = [];
+
+    for (let i = 0; i < data.length; i++) {
+      const time = new Date(data[i].time).getTime() / 1000 as UTCTimestamp;
+      if (i < period - 1) {
+        upperBandData.push({ time });
+        lowerBandData.push({ time });
+        continue;
+      }
+
+      let sumSqDiff = 0;
+      const middleValue = (middleBandData[i] as LineData).value;
+
+      for (let j = i - period + 1; j <= i; j++) {
+        sumSqDiff += Math.pow(data[j].close - middleValue, 2);
+      }
+      const standardDeviation = Math.sqrt(sumSqDiff / period);
+      
+      upperBandData.push({ time, value: middleValue + stdDev * standardDeviation });
+      lowerBandData.push({ time, value: middleValue - stdDev * standardDeviation });
+    }
+
+    return { upper: upperBandData, middle: middleBandData, lower: lowerBandData };
   };
 
   // RSI Calculation
@@ -258,9 +328,12 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart = null;
       }
 
-      let bottomMargin = 0.1;
-      if(rsiConfig.visible) bottomMargin += 0.15;
-      if(macdConfig.visible) bottomMargin += 0.15;
+      let paneCount = 0;
+      if (rsiConfig.visible) paneCount++;
+      if (macdConfig.visible) paneCount++;
+      const paneHeight = 100;
+      const totalPaneHeight = paneCount * paneHeight;
+      const mainChartHeight = 500 - totalPaneHeight;
 
       const chart = createChart(chartContainerRef.current, {
         layout: {
@@ -278,13 +351,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           timeVisible: true,
           secondsVisible: false,
         },
-        rightPriceScale: {
-          borderColor: 'rgba(197, 203, 206, 0.4)',
-          scaleMargins: {
-              top: 0.1,
-              bottom: bottomMargin,
-          },
-        },
       });
       
       const candleSeries = chart.addCandlestickSeries({
@@ -294,41 +360,51 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         borderUpColor: '#2ECC71',
         wickDownColor: '#E74C3C',
         wickUpColor: '#2ECC71',
+        priceScaleId: 'right',
+      });
+
+      chart.priceScale('right').applyOptions({
+         scaleMargins: { top: 0.1, bottom: paneCount > 0 ? (totalPaneHeight / 500) + 0.1 : 0.1 },
       });
 
       const smaSeries = smaConfig.visible ? chart.addLineSeries({
         color: 'rgba(255, 193, 7, 1)',
         lineWidth: 2,
       }) : null;
+      
+      const bbUpperSeries = bollingerBandsConfig.visible ? chart.addLineSeries({ color: 'rgba(69, 90, 100, 0.7)', lineWidth: 1 }) : null;
+      const bbMiddleSeries = bollingerBandsConfig.visible ? chart.addLineSeries({ color: 'rgba(69, 90, 100, 0.7)', lineWidth: 1, lineStyle: LineStyle.Dashed }) : null;
+      const bbLowerSeries = bollingerBandsConfig.visible ? chart.addLineSeries({ color: 'rgba(69, 90, 100, 0.7)', lineWidth: 1 }) : null;
 
-       let rsiPaneId = 1;
+       let currentPane = 0;
+
        const rsiSeries = rsiConfig.visible ? chart.addLineSeries({
         color: 'rgba(219, 138, 222, 1)',
         lineWidth: 2,
-        pane: rsiPaneId,
-        priceScaleId: 'rsi',
+        pane: ++currentPane,
        }) : null;
-
-       let macdPaneId = rsiConfig.visible ? 2 : 1;
-       const macdLineSeries = macdConfig.visible ? chart.addLineSeries({ color: 'blue', lineWidth: 2, pane: macdPaneId }) : null;
-       const macdSignalSeries = macdConfig.visible ? chart.addLineSeries({ color: 'orange', lineWidth: 2, pane: macdPaneId }) : null;
-       const macdHistSeries = macdConfig.visible ? chart.addHistogramSeries({ pane: macdPaneId }) : null;
        
        if (rsiSeries) {
-          chart.priceScale('rsi').applyOptions({
-            scaleMargins: { top: 0.1, bottom: 0.1 },
+          chart.priceScale('left').applyOptions({
+              pane: currentPane,
+              scaleMargins: { top: 0.1, bottom: 0.1 },
           });
           rsiSeries.createPriceLine({ price: 70.0, color: '#F9A825', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Overbought' });
           rsiSeries.createPriceLine({ price: 30.0, color: '#29B6F6', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Oversold' });
        }
        
-       if (macdConfig.visible) {
-          chart.priceScale('left').applyOptions({
-              pane: macdPaneId,
-          });
-       }
+       const macdLineSeries = macdConfig.visible ? chart.addLineSeries({ color: 'blue', lineWidth: 2, pane: ++currentPane }) : null;
+       const macdSignalSeries = macdConfig.visible ? chart.addLineSeries({ color: 'orange', lineWidth: 2, pane: ++currentPane }) : null;
+       const macdHistSeries = macdConfig.visible ? chart.addHistogramSeries({ pane: ++currentPane }) : null;
 
-      chartRef.current = { chart, series: candleSeries, smaSeries, rsiSeries, macdLineSeries, macdSignalSeries, macdHistSeries };
+      if(macdLineSeries) {
+         chart.priceScale('left').applyOptions({
+              pane: currentPane,
+              scaleMargins: { top: 0.1, bottom: 0.1 },
+          });
+      }
+      
+      chartRef.current = { chart, series: candleSeries, smaSeries, rsiSeries, macdLineSeries, macdSignalSeries, macdHistSeries, bbUpperSeries, bbMiddleSeries, bbLowerSeries };
 
       try {
         const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=200`);
@@ -368,6 +444,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
             macdSignalSeries.setData(macdResult.signalLine);
             macdHistSeries.setData(macdResult.histogram);
           }
+
+          if(bollingerBandsConfig.visible && bbUpperSeries && bbMiddleSeries && bbLowerSeries) {
+              const bbResult = calculateBollingerBands(rawOhlcvData, bollingerBandsConfig.period, bollingerBandsConfig.stdDev);
+              setFullBollingerBandsData(bbResult);
+              bbUpperSeries.setData(bbResult.upper);
+              bbMiddleSeries.setData(bbResult.middle);
+              bbLowerSeries.setData(bbResult.lower);
+          }
         }
         
         historicalData = chartData;
@@ -376,7 +460,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           candleSeries.setData(chartData);
           if (smaConfig.visible && smaSeries) {
             const smaData = calculateSma(chartData, smaConfig.period);
-            smaSeries.setData(smaData);
+            smaSeries.setData(smaData as LineData<Time>[]);
           }
           chart.timeScale().fitContent();
           setIsLoading(false);
@@ -422,8 +506,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           }
           
           if (smaConfig.visible && smaSeries) {
-              const lastSmaPoint = calculateSma(historicalData, smaConfig.period).pop();
-              if(lastSmaPoint) smaSeries.update(lastSmaPoint);
+              const smaData = calculateSma(historicalData, smaConfig.period);
+              const lastSmaPoint = smaData[smaData.length-1];
+              if(lastSmaPoint) smaSeries.update(lastSmaPoint as LineData);
           }
 
           if(rsiConfig.visible && rsiSeries) {
@@ -443,6 +528,16 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
               if(lastSignalPoint) macdSignalSeries.update(lastSignalPoint);
               if(lastHistPoint) macdHistSeries.update(lastHistPoint);
           }
+           if(bollingerBandsConfig.visible && bbUpperSeries && bbMiddleSeries && bbLowerSeries) {
+                const newBbData = calculateBollingerBands(updatedOhlcv, bollingerBandsConfig.period, bollingerBandsConfig.stdDev);
+                setFullBollingerBandsData(newBbData);
+                const lastUpper = newBbData.upper[newBbData.upper.length - 1];
+                const lastMiddle = newBbData.middle[newBbData.middle.length - 1];
+                const lastLower = newBbData.lower[newBbData.lower.length - 1];
+                if (lastUpper) bbUpperSeries.update(lastUpper as LineData);
+                if (lastMiddle) bbMiddleSeries.update(lastMiddle as LineData);
+                if (lastLower) bbLowerSeries.update(lastLower as LineData);
+            }
         };
 
       } catch (error) {
@@ -470,7 +565,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart = null;
       }
     };
-  }, [symbol, interval, smaConfig, rsiConfig, macdConfig]);
+  }, [symbol, interval, smaConfig, rsiConfig, macdConfig, bollingerBandsConfig]);
 
   return (
     <div className="relative h-[500px] w-full">

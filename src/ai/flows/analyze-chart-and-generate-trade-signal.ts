@@ -31,6 +31,11 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
     signalLine: z.number(),
     histogram: z.number(),
   }).optional().describe('The latest MACD values.'),
+  bollingerBands: z.object({
+    upper: z.number(),
+    middle: z.number(),
+    lower: z.number(),
+  }).optional().describe('The latest Bollinger Bands values.'),
   higherTimeframe: z.string().optional().describe("The higher timeframe to consider for the primary trend (e.g., '1w' for a '1d' chart)."),
   indicatorConfig: z.any().optional().describe('The configuration for the technical indicators.'),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
@@ -87,10 +92,12 @@ Consider the following technical indicators in your analysis, using the specifie
 - SMA (Simple Moving Average): {{#if indicatorConfig.sma.visible}}A {{indicatorConfig.sma.period}}-period SMA line is visible on the chart.{{else}}(SMA not used){{/if}}
 - RSI (Relative Strength Index): {{#if rsi}}The current {{indicatorConfig.rsi.period}}-period RSI value is {{rsi}}. Use this to gauge momentum and identify overbought (typically >70) or oversold (typically <30) conditions.{{else}}(RSI not used){{/if}}
 - MACD (Moving Average Convergence Divergence): {{#if macd}}The current MACD ({{indicatorConfig.macd.fast}}, {{indicatorConfig.macd.slow}}, {{indicatorConfig.macd.signal}}) values are: MACD Line={{macd.macdLine}}, Signal Line={{macd.signalLine}}, Histogram={{macd.histogram}}. Use this to identify trend momentum. A positive histogram suggests bullish momentum, a negative one suggests bearish momentum. Crossovers between the MACD and Signal lines can indicate potential buy or sell signals.{{else}}(MACD not used){{/if}}
+- Bollinger Bands: {{#if bollingerBands}}The current Bollinger Bands ({{indicatorConfig.bollinger.period}}, {{indicatorConfig.bollinger.stdDev}} std. dev.) values are: Upper={{bollingerBands.upper}}, Middle={{bollingerBands.middle}}, Lower={{bollingerBands.lower}}. Use this to assess volatility. Prices near the upper band can be considered expensive, and prices near the lower band can be considered cheap. The width of the bands indicates volatility.{{else}}(Bollinger Bands not used){{/if}}
+
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, filtered through the lens of the higher timeframe trend. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI and MACD values in your analysis if available.
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, filtered through the lens of the higher timeframe trend. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI, MACD, and Bollinger Bands values in your analysis if available.
 2.  Trade Signal:
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).
