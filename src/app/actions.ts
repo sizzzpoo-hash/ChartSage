@@ -26,7 +26,7 @@ export async function getAiAnalysis(
   try {
     const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, macd, higherTimeframe, question, existingAnalysis });
     
-    // Save the analysis result to Firestore
+    // Save the analysis result to Firestore ONLY after a successful analysis
     await saveAnalysisResult(result, symbol, chartDataUri, userId);
     
     return { success: true, data: result };
