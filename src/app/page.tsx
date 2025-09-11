@@ -1,10 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Bot, Check, Layers, Zap } from 'lucide-react';
+import { Bot, Check, Layers, Settings, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import TradingChart, { type TradingChartHandle, type OhlcvData, type MacdData } from '@/components/trading-chart';
+import TradingChart, { type TradingChartHandle, type MacdData } from '@/components/trading-chart';
 import { getAiAnalysis } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
@@ -21,11 +21,17 @@ import withAuth from '@/components/auth/with-auth';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 const intervals = ['1h', '4h', '1d', '1w'];
@@ -41,14 +47,28 @@ function Home() {
   const [higherTimeframe, setHigherTimeframe] = React.useState<string | undefined>(undefined);
   const { toast } = useToast();
   const { user } = useAuth();
+  
   const [indicators, setIndicators] = React.useState({
-    sma: true,
-    rsi: true,
-    macd: false,
+    sma: { visible: true, period: 20 },
+    rsi: { visible: true, period: 14 },
+    macd: { visible: false, fast: 12, slow: 26, signal: 9 },
   });
 
-  const handleIndicatorToggle = (indicator: keyof typeof indicators) => {
-    setIndicators((prev) => ({ ...prev, [indicator]: !prev[indicator] }));
+  const handleIndicatorToggle = (indicator: 'sma' | 'rsi' | 'macd') => {
+    setIndicators((prev) => ({ 
+      ...prev, 
+      [indicator]: { ...prev[indicator], visible: !prev[indicator].visible }
+    }));
+  };
+  
+  const handleIndicatorParamChange = (indicator: 'sma' | 'rsi' | 'macd', param: string, value: string) => {
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) || numValue <= 0) return;
+
+    setIndicators(prev => ({
+      ...prev,
+      [indicator]: { ...prev[indicator], [param]: numValue }
+    }));
   };
 
 
@@ -90,8 +110,14 @@ function Home() {
       return;
     }
 
-    const rsiData = indicators.rsi ? chartRef.current.getRsiData() : undefined;
-    const macdData = indicators.macd ? chartRef.current.getMacdData() : undefined;
+    const rsiData = indicators.rsi.visible ? chartRef.current.getRsiData() : undefined;
+    const macdData = indicators.macd.visible ? chartRef.current.getMacdData() : undefined;
+    
+    const indicatorConfig = {
+      sma: indicators.sma,
+      rsi: indicators.rsi,
+      macd: indicators.macd,
+    };
 
     const dataUri = canvas.toDataURL('image/png');
     
@@ -100,7 +126,7 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, higherTimeframe, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, higherTimeframe, indicatorConfig, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
@@ -160,38 +186,54 @@ function Home() {
                 </div>
                  <div className="grid w-full max-w-sm items-center gap-1.5">
                   <Label>Indicators</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                  <Sheet>
+                    <SheetTrigger asChild>
                       <Button variant="outline" className="w-[180px] justify-start">
-                        <Layers className="mr-2" />
-                        <span>Select Indicators</span>
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Indicator Settings</span>
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem onClick={() => handleIndicatorToggle('sma')}>
-                        <div className="w-4">
-                            {indicators.sma && <Check className="h-4 w-4" />}
+                    </SheetTrigger>
+                    <SheetContent>
+                      <SheetHeader>
+                        <SheetTitle>Indicator Settings</SheetTitle>
+                        <SheetDescription>
+                          Customize the technical indicators displayed on the chart.
+                        </SheetDescription>
+                      </SheetHeader>
+                      <div className="grid gap-6 py-4">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="sma-visible">20-period SMA</Label>
+                            <Switch id="sma-visible" checked={indicators.sma.visible} onCheckedChange={() => handleIndicatorToggle('sma')} />
                         </div>
-                        <span className="ml-2">20-period SMA</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleIndicatorToggle('rsi')}>
-                         <div className="w-4">
-                            {indicators.rsi && <Check className="h-4 w-4" />}
+                        <Separator />
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="rsi-visible">RSI</Label>
+                            <Switch id="rsi-visible" checked={indicators.rsi.visible} onCheckedChange={() => handleIndicatorToggle('rsi')} />
                         </div>
-                        <span className="ml-2">RSI</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleIndicatorToggle('macd')}>
-                         <div className="w-4">
-                            {indicators.macd && <Check className="h-4 w-4" />}
+                        <div className='space-y-2'>
+                          <Label htmlFor="rsi-period">RSI Period</Label>
+                          <Input id="rsi-period" type="number" value={indicators.rsi.period} onChange={(e) => handleIndicatorParamChange('rsi', 'period', e.target.value)} disabled={!indicators.rsi.visible} />
                         </div>
-                        <span className="ml-2">MACD</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                         <Separator />
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="macd-visible">MACD</Label>
+                            <Switch id="macd-visible" checked={indicators.macd.visible} onCheckedChange={() => handleIndicatorToggle('macd')} />
+                        </div>
+                         <div className='space-y-2'>
+                          <Label>MACD Parameters</Label>
+                          <div className="grid grid-cols-3 gap-2">
+                             <Input id="macd-fast" type="number" value={indicators.macd.fast} onChange={(e) => handleIndicatorParamChange('macd', 'fast', e.target.value)} disabled={!indicators.macd.visible} />
+                             <Input id="macd-slow" type="number" value={indicators.macd.slow} onChange={(e) => handleIndicatorParamChange('macd', 'slow', e.target.value)} disabled={!indicators.macd.visible} />
+                             <Input id="macd-signal" type="number" value={indicators.macd.signal} onChange={(e) => handleIndicatorParamChange('macd', 'signal', e.target.value)} disabled={!indicators.macd.visible} />
+                          </div>
+                        </div>
+                      </div>
+                    </SheetContent>
+                  </Sheet>
                 </div>
                  <div className="grid w-full max-w-sm items-center gap-1.5">
                   <Label htmlFor="higherTimeframe">Higher Timeframe</Label>
-                  <Select value={higherTimeframe} onValueChange={(value) => setHigherTimeframe(value === 'none' ? undefined : value)} name="higherTimeframe">
+                  <Select value={higherTimeframe} onValuecha nge={(value) => setHigherTimeframe(value === 'none' ? undefined : value)} name="higherTimeframe">
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Select HTF" />
                     </SelectTrigger>
@@ -217,9 +259,9 @@ function Home() {
               ref={chartRef}
               symbol={symbol}
               interval={interval}
-              showSma={indicators.sma}
-              showRsi={indicators.rsi}
-              showMacd={indicators.macd}
+              smaConfig={indicators.sma}
+              rsiConfig={indicators.rsi}
+              macdConfig={indicators.macd}
             />
           </CardContent>
           <CardFooter>

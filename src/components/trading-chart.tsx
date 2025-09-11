@@ -10,7 +10,6 @@ import {
   Time,
   LineData,
   WhitespaceData,
-  PriceScaleOptions,
   HistogramData,
 } from 'lightweight-charts';
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
@@ -53,12 +52,16 @@ type BinanceKline = [
   string  // Ignore
 ];
 
+type IndicatorConfig = { visible: boolean; period?: number; };
+type MacdIndicatorConfig = { visible: boolean; fast?: number; slow?: number; signal?: number; };
+
+
 type TradingChartProps = {
   symbol: string;
   interval: string;
-  showSma: boolean;
-  showRsi: boolean;
-  showMacd: boolean;
+  smaConfig: IndicatorConfig & { period: number };
+  rsiConfig: IndicatorConfig & { period: number };
+  macdConfig: MacdIndicatorConfig & { fast: number; slow: number; signal: number };
 };
 
 type MacdCalculatedData = {
@@ -67,7 +70,7 @@ type MacdCalculatedData = {
   histogram: (HistogramData | WhitespaceData)[];
 };
 
-const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval, showSma, showRsi, showMacd }, ref) => {
+const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval, smaConfig, rsiConfig, macdConfig }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<{
     chart: IChartApi | null;
@@ -93,7 +96,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       return ohlcvData;
     },
     getRsiData: () => {
-       const lastRsiPoint = fullRsiData.find(d => 'value' in d);
+       const lastRsiPoint = fullRsiData.slice().reverse().find(d => 'value' in d);
        if (lastRsiPoint && 'value' in lastRsiPoint) {
          return lastRsiPoint.value;
        }
@@ -183,7 +186,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
   };
 
   // MACD Calculation
-  const calculateMacd = (data: OhlcvData[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9): MacdCalculatedData => {
+  const calculateMacd = (data: OhlcvData[], fastPeriod: number, slowPeriod: number, signalPeriod: number): MacdCalculatedData => {
     const prices = data.map(d => d.close);
     if (prices.length < slowPeriod) return { macdLine: [], signalLine: [], histogram: [] };
 
@@ -256,8 +259,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       }
 
       let bottomMargin = 0.1;
-      if(showRsi) bottomMargin += 0.15;
-      if(showMacd) bottomMargin += 0.15;
+      if(rsiConfig.visible) bottomMargin += 0.15;
+      if(macdConfig.visible) bottomMargin += 0.15;
 
       const chart = createChart(chartContainerRef.current, {
         layout: {
@@ -293,23 +296,23 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         wickUpColor: '#2ECC71',
       });
 
-      const smaSeries = showSma ? chart.addLineSeries({
+      const smaSeries = smaConfig.visible ? chart.addLineSeries({
         color: 'rgba(255, 193, 7, 1)',
         lineWidth: 2,
       }) : null;
 
        let rsiPaneId = 1;
-       const rsiSeries = showRsi ? chart.addLineSeries({
+       const rsiSeries = rsiConfig.visible ? chart.addLineSeries({
         color: 'rgba(219, 138, 222, 1)',
         lineWidth: 2,
         pane: rsiPaneId,
         priceScaleId: 'rsi',
        }) : null;
 
-       let macdPaneId = showRsi ? 2 : 1;
-       const macdLineSeries = showMacd ? chart.addLineSeries({ color: 'blue', lineWidth: 2, pane: macdPaneId }) : null;
-       const macdSignalSeries = showMacd ? chart.addLineSeries({ color: 'orange', lineWidth: 2, pane: macdPaneId }) : null;
-       const macdHistSeries = showMacd ? chart.addHistogramSeries({ pane: macdPaneId }) : null;
+       let macdPaneId = rsiConfig.visible ? 2 : 1;
+       const macdLineSeries = macdConfig.visible ? chart.addLineSeries({ color: 'blue', lineWidth: 2, pane: macdPaneId }) : null;
+       const macdSignalSeries = macdConfig.visible ? chart.addLineSeries({ color: 'orange', lineWidth: 2, pane: macdPaneId }) : null;
+       const macdHistSeries = macdConfig.visible ? chart.addHistogramSeries({ pane: macdPaneId }) : null;
        
        if (rsiSeries) {
           chart.priceScale('rsi').applyOptions({
@@ -319,7 +322,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           rsiSeries.createPriceLine({ price: 30.0, color: '#29B6F6', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Oversold' });
        }
        
-       if (showMacd) {
+       if (macdConfig.visible) {
           chart.priceScale('left').applyOptions({
               pane: macdPaneId,
           });
@@ -352,14 +355,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         if (isMounted) {
           setOhlcvData(rawOhlcvData);
           
-          if(showRsi && rsiSeries) {
-            const rsiResult = calculateRsi(rawOhlcvData);
+          if(rsiConfig.visible && rsiSeries) {
+            const rsiResult = calculateRsi(rawOhlcvData, rsiConfig.period);
             setFullRsiData(rsiResult);
             rsiSeries.setData(rsiResult);
           }
 
-          if(showMacd && macdLineSeries && macdSignalSeries && macdHistSeries) {
-            const macdResult = calculateMacd(rawOhlcvData);
+          if(macdConfig.visible && macdLineSeries && macdSignalSeries && macdHistSeries) {
+            const macdResult = calculateMacd(rawOhlcvData, macdConfig.fast, macdConfig.slow, macdConfig.signal);
             setFullMacdData(macdResult);
             macdLineSeries.setData(macdResult.macdLine);
             macdSignalSeries.setData(macdResult.signalLine);
@@ -371,8 +374,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
         if (isMounted) {
           candleSeries.setData(chartData);
-          if (showSma && smaSeries) {
-            const smaData = calculateSma(chartData, 20);
+          if (smaConfig.visible && smaSeries) {
+            const smaData = calculateSma(chartData, smaConfig.period);
             smaSeries.setData(smaData);
           }
           chart.timeScale().fitContent();
@@ -418,20 +421,20 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
             candleSeries.update(candle);
           }
           
-          if (showSma && smaSeries) {
-              const lastSmaPoint = calculateSma(historicalData, 20).pop();
+          if (smaConfig.visible && smaSeries) {
+              const lastSmaPoint = calculateSma(historicalData, smaConfig.period).pop();
               if(lastSmaPoint) smaSeries.update(lastSmaPoint);
           }
 
-          if(showRsi && rsiSeries) {
-            const newRsiData = calculateRsi(updatedOhlcv);
+          if(rsiConfig.visible && rsiSeries) {
+            const newRsiData = calculateRsi(updatedOhlcv, rsiConfig.period);
             setFullRsiData(newRsiData);
             const lastRsiPoint = newRsiData[newRsiData.length-1];
             if(lastRsiPoint) rsiSeries.update(lastRsiPoint);
           }
 
-          if(showMacd && macdLineSeries && macdSignalSeries && macdHistSeries) {
-              const newMacdData = calculateMacd(updatedOhlcv);
+          if(macdConfig.visible && macdLineSeries && macdSignalSeries && macdHistSeries) {
+              const newMacdData = calculateMacd(updatedOhlcv, macdConfig.fast, macdConfig.slow, macdConfig.signal);
               setFullMacdData(newMacdData);
               const lastMacdPoint = newMacdData.macdLine[newMacdData.macdLine.length-1];
               const lastSignalPoint = newMacdData.signalLine[newMacdData.signalLine.length-1];
@@ -467,7 +470,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart = null;
       }
     };
-  }, [symbol, interval, showSma, showRsi, showMacd]);
+  }, [symbol, interval, smaConfig, rsiConfig, macdConfig]);
 
   return (
     <div className="relative h-[500px] w-full">

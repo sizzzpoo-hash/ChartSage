@@ -13,6 +13,7 @@ export async function getAiAnalysis(
   rsi: number | undefined,
   macd: MacdData | undefined,
   higherTimeframe: string | undefined,
+  indicatorConfig: any,
   question?: string, 
   existingAnalysis?: string
 ) {
@@ -24,7 +25,16 @@ export async function getAiAnalysis(
   }
 
   try {
-    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, macd, higherTimeframe, question, existingAnalysis });
+    const result = await analyzeChartAndGenerateTradeSignal({ 
+      chartDataUri, 
+      ohlcvData, 
+      rsi: rsi, 
+      macd: macd, 
+      higherTimeframe, 
+      indicatorConfig,
+      question, 
+      existingAnalysis 
+    });
     
     // Save the analysis result to Firestore ONLY after a successful analysis
     await saveAnalysisResult(result, symbol, chartDataUri, userId);

@@ -25,13 +25,14 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
       "A candlestick chart image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
   ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart.'),
-  rsi: z.number().optional().describe('The latest 14-period Relative Strength Index (RSI) value.'),
+  rsi: z.number().optional().describe('The latest Relative Strength Index (RSI) value.'),
   macd: z.object({
     macdLine: z.number(),
     signalLine: z.number(),
     histogram: z.number(),
-  }).optional().describe('The latest MACD (12, 26, 9) values.'),
+  }).optional().describe('The latest MACD values.'),
   higherTimeframe: z.string().optional().describe("The higher timeframe to consider for the primary trend (e.g., '1w' for a '1d' chart)."),
+  indicatorConfig: z.any().optional().describe('The configuration for the technical indicators.'),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
   existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
 });
@@ -82,10 +83,10 @@ Raw OHLCV Data (use this for calculations):
 {{{json ohlcvData}}}
 \`\`\`
 
-Consider the following technical indicators in your analysis:
-- SMA (Simple Moving Average): A 20-period SMA line is visible on the chart.
-- RSI (Relative Strength Index): {{#if rsi}}The current RSI value is {{rsi}}. Use this to gauge momentum and identify overbought (typically >70) or oversold (typically <30) conditions.{{else}}(No RSI data provided){{/if}}
-- MACD (Moving Average Convergence Divergence): {{#if macd}}The current MACD values are: MACD Line={{macd.macdLine}}, Signal Line={{macd.signalLine}}, Histogram={{macd.histogram}}. Use this to identify trend momentum. A positive histogram suggests bullish momentum, a negative one suggests bearish momentum. Crossovers between the MACD and Signal lines can indicate potential buy or sell signals.{{else}}(No MACD data provided){{/if}}
+Consider the following technical indicators in your analysis, using the specified parameters:
+- SMA (Simple Moving Average): {{#if indicatorConfig.sma.visible}}A {{indicatorConfig.sma.period}}-period SMA line is visible on the chart.{{else}}(SMA not used){{/if}}
+- RSI (Relative Strength Index): {{#if rsi}}The current {{indicatorConfig.rsi.period}}-period RSI value is {{rsi}}. Use this to gauge momentum and identify overbought (typically >70) or oversold (typically <30) conditions.{{else}}(RSI not used){{/if}}
+- MACD (Moving Average Convergence Divergence): {{#if macd}}The current MACD ({{indicatorConfig.macd.fast}}, {{indicatorConfig.macd.slow}}, {{indicatorConfig.macd.signal}}) values are: MACD Line={{macd.macdLine}}, Signal Line={{macd.signalLine}}, Histogram={{macd.histogram}}. Use this to identify trend momentum. A positive histogram suggests bullish momentum, a negative one suggests bearish momentum. Crossovers between the MACD and Signal lines can indicate potential buy or sell signals.{{else}}(MACD not used){{/if}}
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
