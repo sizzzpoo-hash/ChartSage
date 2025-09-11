@@ -162,10 +162,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       const priceScaleOptions: Partial<PriceScaleOptions> = {
         borderColor: 'rgba(197, 203, 206, 0.8)',
       };
-      
-      if (!showRsi) {
-         priceScaleOptions.scaleMargins = { top: 0.1, bottom: 0.1 }
-      }
 
       const chart = createChart(chartContainerRef.current, {
         layout: {
@@ -186,17 +182,26 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         rightPriceScale: priceScaleOptions,
       });
 
-      const rsiPane = showRsi ? chart.addPane({
-          id: 'rsiPane',
-          height: 150,
-          rightPriceScale: {
-              visible: true,
-              borderColor: 'rgba(197, 203, 206, 0.8)',
-              scaleMargins: { top: 0.1, bottom: 0.1 },
-          },
-      }) : null;
+      if (showRsi) {
+        chart.applyOptions({
+            rightPriceScale: {
+                scaleMargins: {
+                    top: 0.1,
+                    bottom: 0.25,
+                },
+            },
+        });
+      } else {
+        chart.applyOptions({
+            rightPriceScale: {
+                scaleMargins: {
+                    top: 0.1,
+                    bottom: 0.1,
+                },
+            },
+        });
+      }
       
-
       const candleSeries = chart.addCandlestickSeries({
         upColor: '#2ECC71',
         downColor: '#E74C3C',
@@ -204,23 +209,27 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         borderUpColor: '#2ECC71',
         wickDownColor: '#E74C3C',
         wickUpColor: '#2ECC71',
-        priceScaleId: 'right'
       });
 
       const smaSeries = showSma ? chart.addLineSeries({
         color: 'rgba(255, 193, 7, 1)',
         lineWidth: 2,
-        priceScaleId: 'right'
       }) : null;
 
-       const rsiSeries = rsiPane ? chart.addLineSeries({
+       const rsiSeries = showRsi ? chart.addLineSeries({
         color: 'rgba(219, 138, 222, 1)',
         lineWidth: 2,
-        pane: rsiPane,
+        pane: 1,
         priceScaleId: 'rsi',
        }) : null;
        
        if (rsiSeries) {
+          rsiSeries.priceScale().applyOptions({
+            scaleMargins: {
+              top: 0.1,
+              bottom: 0.1,
+            },
+          });
           const overboughtLine = rsiSeries.createPriceLine({
               price: 70.0,
               color: '#F9A825',
@@ -383,3 +392,5 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
 TradingChart.displayName = 'TradingChart';
 export default TradingChart;
+
+    
