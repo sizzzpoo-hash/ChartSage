@@ -26,6 +26,11 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
     ),
   ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart.'),
   rsi: z.number().optional().describe('The latest 14-period Relative Strength Index (RSI) value.'),
+  macd: z.object({
+    macdLine: z.number(),
+    signalLine: z.number(),
+    histogram: z.number(),
+  }).optional().describe('The latest MACD (12, 26, 9) values.'),
   higherTimeframe: z.string().optional().describe("The higher timeframe to consider for the primary trend (e.g., '1w' for a '1d' chart)."),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
   existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
@@ -80,11 +85,11 @@ Raw OHLCV Data (use this for calculations):
 Consider the following technical indicators in your analysis:
 - SMA (Simple Moving Average): A 20-period SMA line is visible on the chart.
 - RSI (Relative Strength Index): {{#if rsi}}The current RSI value is {{rsi}}. Use this to gauge momentum and identify overbought (typically >70) or oversold (typically <30) conditions.{{else}}(No RSI data provided){{/if}}
-- MACD (Moving Average Convergence Divergence): (No data provided yet)
+- MACD (Moving Average Convergence Divergence): {{#if macd}}The current MACD values are: MACD Line={{macd.macdLine}}, Signal Line={{macd.signalLine}}, Histogram={{macd.histogram}}. Use this to identify trend momentum. A positive histogram suggests bullish momentum, a negative one suggests bearish momentum. Crossovers between the MACD and Signal lines can indicate potential buy or sell signals.{{else}}(No MACD data provided){{/if}}
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, filtered through the lens of the higher timeframe trend. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI value in your analysis if available.
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, filtered through the lens of the higher timeframe trend. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI and MACD values in your analysis if available.
 2.  Trade Signal:
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).
