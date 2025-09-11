@@ -2,7 +2,7 @@
 
 import { analyzeChartAndGenerateTradeSignal } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
 import { saveAnalysisResult } from '@/lib/firestore';
-import type { OhlcvData } from '@/components/trading-chart';
+import type { OhlcvData, MacdData } from '@/components/trading-chart';
 
 
 export async function getAiAnalysis(
@@ -10,7 +10,8 @@ export async function getAiAnalysis(
   ohlcvData: OhlcvData[],
   symbol: string,
   userId: string,
-  rsi?: number,
+  rsi: number | undefined,
+  macd: MacdData | undefined,
   question?: string, 
   existingAnalysis?: string
 ) {
@@ -24,7 +25,7 @@ export async function getAiAnalysis(
   try {
     // Note: The 'higherTimeframe' parameter is not yet passed from the UI.
     // This is a placeholder for a future enhancement where the user can select it.
-    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, question, existingAnalysis });
+    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, macd, question, existingAnalysis });
     
     // Save the analysis result to Firestore
     await saveAnalysisResult(result, symbol, chartDataUri, userId);

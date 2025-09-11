@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Bot, Check, Layers, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import TradingChart, { type TradingChartHandle, type OhlcvData } from '@/components/trading-chart';
+import TradingChart, { type TradingChartHandle, type OhlcvData, type MacdData } from '@/components/trading-chart';
 import { getAiAnalysis } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
@@ -25,7 +25,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
@@ -42,6 +41,7 @@ function Home() {
   const [indicators, setIndicators] = React.useState({
     sma: true,
     rsi: true,
+    macd: false,
   });
 
   const handleIndicatorToggle = (indicator: keyof typeof indicators) => {
@@ -87,7 +87,8 @@ function Home() {
       return;
     }
 
-    const rsiData = chartRef.current.getRsiData();
+    const rsiData = indicators.rsi ? chartRef.current.getRsiData() : undefined;
+    const macdData = indicators.macd ? chartRef.current.getMacdData() : undefined;
 
     const dataUri = canvas.toDataURL('image/png');
     
@@ -96,7 +97,7 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
@@ -176,6 +177,12 @@ function Home() {
                         </div>
                         <span className="ml-2">RSI</span>
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleIndicatorToggle('macd')}>
+                         <div className="w-4">
+                            {indicators.macd && <Check className="h-4 w-4" />}
+                        </div>
+                        <span className="ml-2">MACD</span>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -193,6 +200,7 @@ function Home() {
               interval={interval}
               showSma={indicators.sma}
               showRsi={indicators.rsi}
+              showMacd={indicators.macd}
             />
           </CardContent>
           <CardFooter>

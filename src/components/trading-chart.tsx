@@ -11,6 +11,7 @@ import {
   LineData,
   WhitespaceData,
   PriceScaleOptions,
+  HistogramData,
 } from 'lightweight-charts';
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { Skeleton } from './ui/skeleton';
@@ -23,10 +24,17 @@ export type OhlcvData = {
   close: number;
 };
 
+export type MacdData = {
+  macdLine: number;
+  signalLine: number;
+  histogram: number;
+};
+
 export type TradingChartHandle = {
   takeScreenshot: () => HTMLCanvasElement | undefined;
   getOhlcvData: () => OhlcvData[];
   getRsiData: () => number | undefined;
+  getMacdData: () => MacdData | undefined;
 };
 
 // Binance API returns data in this format
@@ -50,19 +58,31 @@ type TradingChartProps = {
   interval: string;
   showSma: boolean;
   showRsi: boolean;
+  showMacd: boolean;
 };
 
-const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval, showSma, showRsi }, ref) => {
+type MacdCalculatedData = {
+  macdLine: (LineData | WhitespaceData)[];
+  signalLine: (LineData | WhitespaceData)[];
+  histogram: (HistogramData | WhitespaceData)[];
+};
+
+const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval, showSma, showRsi, showMacd }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<{
     chart: IChartApi | null;
     series: ISeriesApi<'Candlestick'> | null;
     smaSeries: ISeriesApi<'Line'> | null;
     rsiSeries: ISeriesApi<'Line'> | null;
-  }>({ chart: null, series: null, smaSeries: null, rsiSeries: null });
+    macdLineSeries: ISeriesApi<'Line'> | null;
+    macdSignalSeries: ISeriesApi<'Line'> | null;
+    macdHistSeries: ISeriesApi<'Histogram'> | null;
+  }>({ chart: null, series: null, smaSeries: null, rsiSeries: null, macdLineSeries: null, macdSignalSeries: null, macdHistSeries: null });
+
   const [isLoading, setIsLoading] = useState(true);
   const [ohlcvData, setOhlcvData] = useState<OhlcvData[]>([]);
   const [fullRsiData, setFullRsiData] = useState<(LineData | WhitespaceData)[]>([]);
+  const [fullMacdData, setFullMacdData] = useState<MacdCalculatedData>({ macdLine: [], signalLine: [], histogram: [] });
 
 
   useImperativeHandle(ref, () => ({
@@ -73,11 +93,25 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       return ohlcvData;
     },
     getRsiData: () => {
-       const lastRsiPoint = fullRsiData[fullRsiData.length - 1];
+       const lastRsiPoint = fullRsiData.find(d => 'value' in d);
        if (lastRsiPoint && 'value' in lastRsiPoint) {
          return lastRsiPoint.value;
        }
        return undefined;
+    },
+    getMacdData: () => {
+      const lastMacd = fullMacdData.macdLine.slice().reverse().find(d => 'value' in d) as LineData | undefined;
+      const lastSignal = fullMacdData.signalLine.slice().reverse().find(d => 'value' in d) as LineData | undefined;
+      const lastHist = fullMacdData.histogram.slice().reverse().find(d => 'value' in d) as HistogramData | undefined;
+      
+      if (lastMacd && lastSignal && lastHist) {
+        return {
+          macdLine: lastMacd.value,
+          signalLine: lastSignal.value,
+          histogram: lastHist.value,
+        }
+      }
+      return undefined;
     }
   }));
 
@@ -104,6 +138,11 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
     let gains = 0;
     let losses = 0;
+    
+    // Fill initial undefined values
+    for(let i=0; i<period; i++) {
+        rsiValues.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
+    }
 
     // First period calculation
     for(let i = 1; i <= period; i++) {
@@ -113,7 +152,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       } else {
         losses -= change;
       }
-      rsiValues.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
     }
 
     let avgGain = gains / period;
@@ -121,7 +159,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     
     let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
     let rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
-    rsiValues[period-1] = { time: new Date(data[period].time).getTime() / 1000 as UTCTimestamp, value: rsi };
+    rsiValues[period] = { time: new Date(data[period].time).getTime() / 1000 as UTCTimestamp, value: rsi };
+
 
     // Subsequent periods
     for (let i = period + 1; i < data.length; i++) {
@@ -143,6 +182,63 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     return rsiValues;
   };
 
+  // MACD Calculation
+  const calculateMacd = (data: OhlcvData[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9): MacdCalculatedData => {
+    const prices = data.map(d => d.close);
+    if (prices.length < slowPeriod) return { macdLine: [], signalLine: [], histogram: [] };
+
+    const ema = (arr: number[], period: number) => {
+        const k = 2 / (period + 1);
+        let emaArr = [arr[0]];
+        for (let i = 1; i < arr.length; i++) {
+            emaArr.push(arr[i] * k + emaArr[i - 1] * (1 - k));
+        }
+        return emaArr;
+    };
+
+    const fastEma = ema(prices, fastPeriod);
+    const slowEma = ema(prices, slowPeriod);
+
+    const macdLine: (LineData | WhitespaceData)[] = [];
+    const macdValues: number[] = [];
+
+    for (let i = 0; i < data.length; i++) {
+        if (i < slowPeriod - 1) {
+            macdLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
+        } else {
+            const macdValue = fastEma[i] - slowEma[i];
+            macdLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp, value: macdValue });
+            macdValues.push(macdValue);
+        }
+    }
+
+    const signalEma = ema(macdValues, signalPeriod);
+    const signalLine: (LineData | WhitespaceData)[] = [];
+    const histogram: (HistogramData | WhitespaceData)[] = [];
+
+    let macdIndex = 0;
+    for (let i = 0; i < data.length; i++) {
+        if (i < slowPeriod - 1 + signalPeriod - 1) {
+            signalLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
+            histogram.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
+        } else {
+            const signalValue = signalEma[macdIndex];
+            signalLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp, value: signalValue });
+            
+            const macdValue = macdValues[macdIndex];
+            const histValue = macdValue - signalValue;
+            histogram.push({
+                time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp,
+                value: histValue,
+                color: histValue >= 0 ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+            });
+            macdIndex++;
+        }
+    }
+
+    return { macdLine, signalLine, histogram };
+  };
+
 
   useEffect(() => {
     let isMounted = true;
@@ -159,9 +255,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart = null;
       }
 
-      const priceScaleOptions: Partial<PriceScaleOptions> = {
-        borderColor: 'rgba(197, 203, 206, 0.8)',
-      };
+      let bottomMargin = 0.1;
+      if(showRsi) bottomMargin += 0.15;
+      if(showMacd) bottomMargin += 0.15;
 
       const chart = createChart(chartContainerRef.current, {
         layout: {
@@ -169,8 +265,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           textColor: 'rgba(234, 239, 248, 0.8)',
         },
         grid: {
-          vertLines: { color: 'rgba(70, 130, 180, 0.5)' },
-          horzLines: { color: 'rgba(70, 130, 180, 0.5)' },
+          vertLines: { color: 'rgba(70, 130, 180, 0.1)' },
+          horzLines: { color: 'rgba(70, 130, 180, 0.1)' },
         },
         width: chartContainerRef.current.clientWidth,
         height: 500,
@@ -179,28 +275,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           timeVisible: true,
           secondsVisible: false,
         },
-        rightPriceScale: priceScaleOptions,
+        rightPriceScale: {
+          borderColor: 'rgba(197, 203, 206, 0.4)',
+          scaleMargins: {
+              top: 0.1,
+              bottom: bottomMargin,
+          },
+        },
       });
-
-      if (showRsi) {
-        chart.applyOptions({
-            rightPriceScale: {
-                scaleMargins: {
-                    top: 0.1,
-                    bottom: 0.25,
-                },
-            },
-        });
-      } else {
-        chart.applyOptions({
-            rightPriceScale: {
-                scaleMargins: {
-                    top: 0.1,
-                    bottom: 0.1,
-                },
-            },
-        });
-      }
       
       const candleSeries = chart.addCandlestickSeries({
         upColor: '#2ECC71',
@@ -216,39 +298,34 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         lineWidth: 2,
       }) : null;
 
+       let rsiPaneId = 1;
        const rsiSeries = showRsi ? chart.addLineSeries({
         color: 'rgba(219, 138, 222, 1)',
         lineWidth: 2,
-        pane: 1,
+        pane: rsiPaneId,
         priceScaleId: 'rsi',
        }) : null;
+
+       let macdPaneId = showRsi ? 2 : 1;
+       const macdLineSeries = showMacd ? chart.addLineSeries({ color: 'blue', lineWidth: 2, pane: macdPaneId }) : null;
+       const macdSignalSeries = showMacd ? chart.addLineSeries({ color: 'orange', lineWidth: 2, pane: macdPaneId }) : null;
+       const macdHistSeries = showMacd ? chart.addHistogramSeries({ pane: macdPaneId }) : null;
        
        if (rsiSeries) {
-          rsiSeries.priceScale().applyOptions({
-            scaleMargins: {
-              top: 0.1,
-              bottom: 0.1,
-            },
+          chart.priceScale('rsi').applyOptions({
+            scaleMargins: { top: 0.1, bottom: 0.1 },
           });
-          const overboughtLine = rsiSeries.createPriceLine({
-              price: 70.0,
-              color: '#F9A825',
-              lineWidth: 1,
-              lineStyle: 2, // Dashed
-              axisLabelVisible: true,
-              title: 'Overbought',
-          });
-          const oversoldLine = rsiSeries.createPriceLine({
-              price: 30.0,
-              color: '#29B6F6',
-              lineWidth: 1,
-              lineStyle: 2, // Dashed
-              axisLabelVisible: true,
-              title: 'Oversold',
+          rsiSeries.createPriceLine({ price: 70.0, color: '#F9A825', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Overbought' });
+          rsiSeries.createPriceLine({ price: 30.0, color: '#29B6F6', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Oversold' });
+       }
+       
+       if (showMacd) {
+          chart.priceScale('left').applyOptions({
+              pane: macdPaneId,
           });
        }
 
-      chartRef.current = { chart, series: candleSeries, smaSeries, rsiSeries };
+      chartRef.current = { chart, series: candleSeries, smaSeries, rsiSeries, macdLineSeries, macdSignalSeries, macdHistSeries };
 
       try {
         const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=200`);
@@ -274,11 +351,19 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
         if (isMounted) {
           setOhlcvData(rawOhlcvData);
-          const rsiResult = calculateRsi(rawOhlcvData);
-          setFullRsiData(rsiResult);
           
           if(showRsi && rsiSeries) {
+            const rsiResult = calculateRsi(rawOhlcvData);
+            setFullRsiData(rsiResult);
             rsiSeries.setData(rsiResult);
+          }
+
+          if(showMacd && macdLineSeries && macdSignalSeries && macdHistSeries) {
+            const macdResult = calculateMacd(rawOhlcvData);
+            setFullMacdData(macdResult);
+            macdLineSeries.setData(macdResult.macdLine);
+            macdSignalSeries.setData(macdResult.signalLine);
+            macdHistSeries.setData(macdResult.histogram);
           }
         }
         
@@ -317,9 +402,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
           let updatedOhlcv: OhlcvData[];
           let updatedChartData: CandlestickData<Time>[];
-          const lastCandle = historicalData[historicalData.length - 1];
+          const lastCandle = historicalData.length > 0 ? historicalData[historicalData.length - 1] : null;
 
-          if (candle.time === lastCandle.time) {
+          if (lastCandle && candle.time === lastCandle.time) {
             updatedChartData = [...historicalData.slice(0, -1), candle];
             updatedOhlcv = [...ohlcvData.slice(0, -1), newOhlc];
           } else {
@@ -329,25 +414,31 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           historicalData = updatedChartData;
           setOhlcvData(updatedOhlcv);
           
-          const newRsiData = calculateRsi(updatedOhlcv);
-          setFullRsiData(newRsiData);
-          
           if (candleSeries) {
             candleSeries.update(candle);
           }
           
           if (showSma && smaSeries) {
               const lastSmaPoint = calculateSma(historicalData, 20).pop();
-              if(lastSmaPoint) {
-                smaSeries.update(lastSmaPoint);
-              }
+              if(lastSmaPoint) smaSeries.update(lastSmaPoint);
           }
 
           if(showRsi && rsiSeries) {
+            const newRsiData = calculateRsi(updatedOhlcv);
+            setFullRsiData(newRsiData);
             const lastRsiPoint = newRsiData[newRsiData.length-1];
-            if(lastRsiPoint) {
-              rsiSeries.update(lastRsiPoint);
-            }
+            if(lastRsiPoint) rsiSeries.update(lastRsiPoint);
+          }
+
+          if(showMacd && macdLineSeries && macdSignalSeries && macdHistSeries) {
+              const newMacdData = calculateMacd(updatedOhlcv);
+              setFullMacdData(newMacdData);
+              const lastMacdPoint = newMacdData.macdLine[newMacdData.macdLine.length-1];
+              const lastSignalPoint = newMacdData.signalLine[newMacdData.signalLine.length-1];
+              const lastHistPoint = newMacdData.histogram[newMacdData.histogram.length-1];
+              if(lastMacdPoint) macdLineSeries.update(lastMacdPoint);
+              if(lastSignalPoint) macdSignalSeries.update(lastSignalPoint);
+              if(lastHistPoint) macdHistSeries.update(lastHistPoint);
           }
         };
 
@@ -376,7 +467,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart = null;
       }
     };
-  }, [symbol, interval, showSma, showRsi]);
+  }, [symbol, interval, showSma, showRsi, showMacd]);
 
   return (
     <div className="relative h-[500px] w-full">
@@ -392,5 +483,3 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
 TradingChart.displayName = 'TradingChart';
 export default TradingChart;
-
-    
