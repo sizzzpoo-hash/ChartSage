@@ -26,6 +26,7 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
     ),
   ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart.'),
   rsi: z.number().optional().describe('The latest 14-period Relative Strength Index (RSI) value.'),
+  higherTimeframe: z.string().optional().describe("The higher timeframe to consider for the primary trend (e.g., '1w' for a '1d' chart)."),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
   existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
 });
@@ -49,9 +50,16 @@ const prompt = ai.definePrompt({
   name: 'analyzeChartAndGenerateTradeSignalPrompt',
   input: {schema: AnalyzeChartAndGenerateTradeSignalInputSchema},
   output: {schema: AnalyzeChartAndGenerateTradeSignalOutputSchema},
-  prompt: `You are an expert financial analyst specializing in quantitative analysis of candlestick charts and generating trade signals.
+  prompt: `You are an expert financial analyst specializing in multi-timeframe quantitative analysis of candlestick charts and generating trade signals.
 
 Your primary source of information should be the raw OHLCV data provided. Use the chart image for visual confirmation of patterns, but base your calculations and precise price levels on the raw data.
+
+**Multi-Timeframe Strategy:**
+{{#if higherTimeframe}}
+The primary chart should be analyzed in the context of the trend on the {{higherTimeframe}} timeframe.
+1.  **Establish Primary Trend:** First, determine the primary trend on the higher timeframe (e.g., weekly). A simple way is to check if the price is generally above or below a long-term moving average (like the 20-period SMA shown).
+2.  **Filter Trades:** Use the primary trend to filter your signals. If the primary trend is bullish, give more weight to bullish patterns and signals on the main chart. If the primary trend is bearish, prioritize bearish signals. Avoid counter-trend trades unless there is a very strong reversal signal.
+{{/if}}
 
 {{#if question}}
 You are refining a previous analysis based on a user's question.
@@ -76,7 +84,7 @@ Consider the following technical indicators in your analysis:
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI value in your analysis if available.
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, filtered through the lens of the higher timeframe trend. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI value in your analysis if available.
 2.  Trade Signal:
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).

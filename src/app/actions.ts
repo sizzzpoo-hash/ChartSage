@@ -22,6 +22,8 @@ export async function getAiAnalysis(
   }
 
   try {
+    // Note: The 'higherTimeframe' parameter is not yet passed from the UI.
+    // This is a placeholder for a future enhancement where the user can select it.
     const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, question, existingAnalysis });
     
     // Save the analysis result to Firestore
