@@ -52,9 +52,14 @@ Analyze the provided candlestick chart image and generate a concise market analy
 
 Chart Image: {{media url=chartDataUri}}
 
-Based on your analysis, provide the following:
+Consider the following technical indicators in your analysis if they are provided:
+- SMA (Simple Moving Average): A 20-period SMA line is visible on the chart.
+- RSI (Relative Strength Index): (No data provided yet)
+- MACD (Moving Average Convergence Divergence): (No data provided yet)
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns and trends.
+Based on your analysis of the chart patterns and any available indicators, provide the following:
+
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals.
 2.  Trade Signal:
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).
