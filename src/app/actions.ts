@@ -10,6 +10,7 @@ export async function getAiAnalysis(
   ohlcvData: OhlcvData[],
   symbol: string,
   userId: string,
+  rsi?: number,
   question?: string, 
   existingAnalysis?: string
 ) {
@@ -21,7 +22,7 @@ export async function getAiAnalysis(
   }
 
   try {
-    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, question, existingAnalysis });
+    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, question, existingAnalysis });
     
     // Save the analysis result to Firestore
     await saveAnalysisResult(result, symbol, chartDataUri, userId);

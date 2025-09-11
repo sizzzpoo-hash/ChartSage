@@ -25,6 +25,7 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
       "A candlestick chart image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
   ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart.'),
+  rsi: z.number().optional().describe('The latest 14-period Relative Strength Index (RSI) value.'),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
   existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
 });
@@ -68,14 +69,14 @@ Raw OHLCV Data (use this for calculations):
 {{{json ohlcvData}}}
 \`\`\`
 
-Consider the following technical indicators in your analysis if they are provided:
+Consider the following technical indicators in your analysis:
 - SMA (Simple Moving Average): A 20-period SMA line is visible on the chart.
-- RSI (Relative Strength Index): (No data provided yet)
+- RSI (Relative Strength Index): {{#if rsi}}The current RSI value is {{rsi}}. Use this to gauge momentum and identify overbought (typically >70) or oversold (typically <30) conditions.{{else}}(No RSI data provided){{/if}}
 - MACD (Moving Average Convergence Divergence): (No data provided yet)
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals. Base price levels and calculations on the raw OHLCV data.
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals. Base price levels and calculations on the raw OHLCV data. Incorporate the RSI value in your analysis if available.
 2.  Trade Signal:
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).

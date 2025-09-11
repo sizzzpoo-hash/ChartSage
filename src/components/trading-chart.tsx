@@ -24,6 +24,7 @@ export type OhlcvData = {
 export type TradingChartHandle = {
   takeScreenshot: () => HTMLCanvasElement | undefined;
   getOhlcvData: () => OhlcvData[];
+  getRsiData: () => number | undefined;
 };
 
 // Binance API returns data in this format
@@ -56,6 +57,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
   }>({ chart: null, series: null, smaSeries: null });
   const [isLoading, setIsLoading] = useState(true);
   const [ohlcvData, setOhlcvData] = useState<OhlcvData[]>([]);
+  const [rsiData, setRsiData] = useState<number | undefined>();
 
   useImperativeHandle(ref, () => ({
     takeScreenshot: () => {
@@ -63,6 +65,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     },
     getOhlcvData: () => {
       return ohlcvData;
+    },
+    getRsiData: () => {
+      return rsiData;
     }
   }));
 
@@ -81,6 +86,49 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     }
     return smaData;
   };
+
+  // RSI Calculation
+  const calculateRsi = (data: OhlcvData[], period: number = 14): number | undefined => {
+    if (data.length < period) return undefined;
+
+    let gains = 0;
+    let losses = 0;
+
+    // Calculate initial average gain and loss
+    for (let i = 1; i <= period; i++) {
+      const change = data[i].close - data[i - 1].close;
+      if (change > 0) {
+        gains += change;
+      } else {
+        losses -= change;
+      }
+    }
+
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+
+    // Smooth the averages for the rest of the data
+    for (let i = period + 1; i < data.length; i++) {
+      const change = data[i].close - data[i - 1].close;
+      if (change > 0) {
+        avgGain = (avgGain * (period - 1) + change) / period;
+        avgLoss = (avgLoss * (period - 1)) / period;
+      } else {
+        avgLoss = (avgLoss * (period - 1) - change) / period;
+        avgGain = (avgGain * (period - 1)) / period;
+      }
+    }
+
+    if (avgLoss === 0) {
+      return 100; // RSI is 100 if average loss is zero
+    }
+    
+    const rs = avgGain / avgLoss;
+    const rsi = 100 - (100 / (1 + rs));
+
+    return rsi;
+  };
+
 
   useEffect(() => {
     let isMounted = true;
@@ -158,6 +206,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
         if (isMounted) {
           setOhlcvData(rawOhlcvData);
+          setRsiData(calculateRsi(rawOhlcvData));
         }
         
         historicalData.push(...chartData);
@@ -191,15 +240,18 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
             close: parseFloat(kline.c),
           };
 
+          let updatedOhlcv: OhlcvData[];
           const lastCandle = historicalData[historicalData.length - 1];
           if (candle.time === lastCandle.time) {
             historicalData[historicalData.length - 1] = candle;
-            setOhlcvData(prev => [...prev.slice(0, -1), newOhlc]);
+            updatedOhlcv = [...ohlcvData.slice(0, -1), newOhlc];
           } else {
             historicalData.push(candle);
             historicalData.shift(); // Keep array size constant
-            setOhlcvData(prev => [...prev.slice(1), newOhlc]);
+            updatedOhlcv = [...ohlcvData.slice(1), newOhlc];
           }
+          setOhlcvData(updatedOhlcv);
+          setRsiData(calculateRsi(updatedOhlcv));
           
           if (candleSeries) {
             candleSeries.update(candle);

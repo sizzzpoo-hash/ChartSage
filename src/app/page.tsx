@@ -71,6 +71,7 @@ function Home() {
       return;
     }
 
+    const rsiData = chartRef.current.getRsiData();
 
     const dataUri = canvas.toDataURL('image/png');
     
@@ -79,7 +80,7 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
