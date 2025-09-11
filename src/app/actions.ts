@@ -12,6 +12,7 @@ export async function getAiAnalysis(
   userId: string,
   rsi: number | undefined,
   macd: MacdData | undefined,
+  higherTimeframe: string | undefined,
   question?: string, 
   existingAnalysis?: string
 ) {
@@ -23,9 +24,7 @@ export async function getAiAnalysis(
   }
 
   try {
-    // Note: The 'higherTimeframe' parameter is not yet passed from the UI.
-    // This is a placeholder for a future enhancement where the user can select it.
-    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, macd, question, existingAnalysis });
+    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, rsi, macd, higherTimeframe, question, existingAnalysis });
     
     // Save the analysis result to Firestore
     await saveAnalysisResult(result, symbol, chartDataUri, userId);

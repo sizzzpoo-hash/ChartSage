@@ -29,6 +29,8 @@ import {
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 const intervals = ['1h', '4h', '1d', '1w'];
+const higherTimeframes = ['1w', '1M'];
+
 
 function Home() {
   const chartRef = React.useRef<TradingChartHandle>(null);
@@ -36,6 +38,7 @@ function Home() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [symbol, setSymbol] = React.useState('BTCUSDT');
   const [interval, setInterval] = React.useState('1d');
+  const [higherTimeframe, setHigherTimeframe] = React.useState<string | undefined>(undefined);
   const { toast } = useToast();
   const { user } = useAuth();
   const [indicators, setIndicators] = React.useState({
@@ -97,7 +100,7 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, rsiData, macdData, higherTimeframe, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
@@ -124,7 +127,7 @@ function Home() {
                   Live {symbol} ({interval}) data from Binance.
                 </CardDescription>
               </div>
-              <div className='flex gap-4'>
+              <div className='flex flex-wrap gap-4'>
                 <div className="grid w-full max-w-sm items-center gap-1.5">
                   <Label htmlFor="symbol">Symbol</Label>
                   <Select value={symbol} onValueChange={setSymbol} name="symbol">
@@ -185,6 +188,22 @@ function Home() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                </div>
+                 <div className="grid w-full max-w-sm items-center gap-1.5">
+                  <Label htmlFor="higherTimeframe">Higher Timeframe</Label>
+                  <Select value={higherTimeframe} onValueChange={(value) => setHigherTimeframe(value === 'none' ? undefined : value)} name="higherTimeframe">
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select HTF" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {higherTimeframes.map((item) => (
+                        <SelectItem key={item} value={item} disabled={!intervals.includes(interval) || item === interval}>
+                          {item}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
