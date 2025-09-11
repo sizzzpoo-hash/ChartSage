@@ -9,6 +9,8 @@ import {
   UTCTimestamp,
   Time,
   LineData,
+  WhitespaceData,
+  PriceScaleOptions,
 } from 'lightweight-charts';
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { Skeleton } from './ui/skeleton';
@@ -46,18 +48,22 @@ type BinanceKline = [
 type TradingChartProps = {
   symbol: string;
   interval: string;
+  showSma: boolean;
+  showRsi: boolean;
 };
 
-const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval }, ref) => {
+const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol, interval, showSma, showRsi }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<{
     chart: IChartApi | null;
     series: ISeriesApi<'Candlestick'> | null;
     smaSeries: ISeriesApi<'Line'> | null;
-  }>({ chart: null, series: null, smaSeries: null });
+    rsiSeries: ISeriesApi<'Line'> | null;
+  }>({ chart: null, series: null, smaSeries: null, rsiSeries: null });
   const [isLoading, setIsLoading] = useState(true);
   const [ohlcvData, setOhlcvData] = useState<OhlcvData[]>([]);
-  const [rsiData, setRsiData] = useState<number | undefined>();
+  const [fullRsiData, setFullRsiData] = useState<(LineData | WhitespaceData)[]>([]);
+
 
   useImperativeHandle(ref, () => ({
     takeScreenshot: () => {
@@ -67,7 +73,11 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       return ohlcvData;
     },
     getRsiData: () => {
-      return rsiData;
+       const lastRsiPoint = fullRsiData[fullRsiData.length - 1];
+       if (lastRsiPoint && 'value' in lastRsiPoint) {
+         return lastRsiPoint.value;
+       }
+       return undefined;
     }
   }));
 
@@ -88,28 +98,35 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
   };
 
   // RSI Calculation
-  const calculateRsi = (data: OhlcvData[], period: number = 14): number | undefined => {
-    if (data.length < period) return undefined;
+  const calculateRsi = (data: OhlcvData[], period: number = 14): (LineData<Time> | WhitespaceData<Time>)[] => {
+    const rsiValues: (LineData<Time> | WhitespaceData<Time>)[] = [];
+    if (data.length < period) return [];
 
     let gains = 0;
     let losses = 0;
 
-    // Calculate initial average gain and loss
-    for (let i = 1; i <= period; i++) {
-      const change = data[i].close - data[i - 1].close;
+    // First period calculation
+    for(let i = 1; i <= period; i++) {
+      const change = data[i].close - data[i-1].close;
       if (change > 0) {
         gains += change;
       } else {
         losses -= change;
       }
+      rsiValues.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
     }
 
     let avgGain = gains / period;
     let avgLoss = losses / period;
+    
+    let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+    let rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
+    rsiValues[period-1] = { time: new Date(data[period].time).getTime() / 1000 as UTCTimestamp, value: rsi };
 
-    // Smooth the averages for the rest of the data
+    // Subsequent periods
     for (let i = period + 1; i < data.length; i++) {
-      const change = data[i].close - data[i - 1].close;
+      const change = data[i].close - data[i-1].close;
+      
       if (change > 0) {
         avgGain = (avgGain * (period - 1) + change) / period;
         avgLoss = (avgLoss * (period - 1)) / period;
@@ -117,23 +134,20 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         avgLoss = (avgLoss * (period - 1) - change) / period;
         avgGain = (avgGain * (period - 1)) / period;
       }
+      
+      rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+      rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
+      rsiValues.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp, value: rsi });
     }
 
-    if (avgLoss === 0) {
-      return 100; // RSI is 100 if average loss is zero
-    }
-    
-    const rs = avgGain / avgLoss;
-    const rsi = 100 - (100 / (1 + rs));
-
-    return rsi;
+    return rsiValues;
   };
 
 
   useEffect(() => {
     let isMounted = true;
     let ws: WebSocket | null = null;
-    const historicalData: CandlestickData<Time>[] = [];
+    let historicalData: CandlestickData<Time>[] = [];
     
     const initializeChart = async () => {
       if (!chartContainerRef.current) return;
@@ -144,7 +158,15 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart.remove();
         chartRef.current.chart = null;
       }
+
+      const priceScaleOptions: Partial<PriceScaleOptions> = {
+        borderColor: 'rgba(197, 203, 206, 0.8)',
+      };
       
+      if (!showRsi) {
+         priceScaleOptions.scaleMargins = { top: 0.1, bottom: 0.1 }
+      }
+
       const chart = createChart(chartContainerRef.current, {
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
@@ -161,10 +183,19 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           timeVisible: true,
           secondsVisible: false,
         },
-        rightPriceScale: {
-          borderColor: '#4A6572',
-        },
+        rightPriceScale: priceScaleOptions,
       });
+
+      const rsiPane = showRsi ? chart.addPane({
+          id: 'rsiPane',
+          height: 150,
+          rightPriceScale: {
+              visible: true,
+              borderColor: 'rgba(197, 203, 206, 0.8)',
+              scaleMargins: { top: 0.1, bottom: 0.1 },
+          },
+      }) : null;
+      
 
       const candleSeries = chart.addCandlestickSeries({
         upColor: '#2ECC71',
@@ -173,17 +204,45 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         borderUpColor: '#2ECC71',
         wickDownColor: '#E74C3C',
         wickUpColor: '#2ECC71',
+        priceScaleId: 'right'
       });
 
-      const smaSeries = chart.addLineSeries({
+      const smaSeries = showSma ? chart.addLineSeries({
         color: 'rgba(255, 193, 7, 1)',
         lineWidth: 2,
-      });
-      
-      chartRef.current = { chart, series: candleSeries, smaSeries };
+        priceScaleId: 'right'
+      }) : null;
+
+       const rsiSeries = rsiPane ? chart.addLineSeries({
+        color: 'rgba(219, 138, 222, 1)',
+        lineWidth: 2,
+        pane: rsiPane,
+        priceScaleId: 'rsi',
+       }) : null;
+       
+       if (rsiSeries) {
+          const overboughtLine = rsiSeries.createPriceLine({
+              price: 70.0,
+              color: '#F9A825',
+              lineWidth: 1,
+              lineStyle: 2, // Dashed
+              axisLabelVisible: true,
+              title: 'Overbought',
+          });
+          const oversoldLine = rsiSeries.createPriceLine({
+              price: 30.0,
+              color: '#29B6F6',
+              lineWidth: 1,
+              lineStyle: 2, // Dashed
+              axisLabelVisible: true,
+              title: 'Oversold',
+          });
+       }
+
+      chartRef.current = { chart, series: candleSeries, smaSeries, rsiSeries };
 
       try {
-        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=150`);
+        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=200`);
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
@@ -206,15 +265,22 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
         if (isMounted) {
           setOhlcvData(rawOhlcvData);
-          setRsiData(calculateRsi(rawOhlcvData));
+          const rsiResult = calculateRsi(rawOhlcvData);
+          setFullRsiData(rsiResult);
+          
+          if(showRsi && rsiSeries) {
+            rsiSeries.setData(rsiResult);
+          }
         }
         
-        historicalData.push(...chartData);
+        historicalData = chartData;
 
         if (isMounted) {
           candleSeries.setData(chartData);
-          const smaData = calculateSma(chartData, 20);
-          smaSeries.setData(smaData);
+          if (showSma && smaSeries) {
+            const smaData = calculateSma(chartData, 20);
+            smaSeries.setData(smaData);
+          }
           chart.timeScale().fitContent();
           setIsLoading(false);
         }
@@ -241,27 +307,38 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           };
 
           let updatedOhlcv: OhlcvData[];
+          let updatedChartData: CandlestickData<Time>[];
           const lastCandle = historicalData[historicalData.length - 1];
+
           if (candle.time === lastCandle.time) {
-            historicalData[historicalData.length - 1] = candle;
+            updatedChartData = [...historicalData.slice(0, -1), candle];
             updatedOhlcv = [...ohlcvData.slice(0, -1), newOhlc];
           } else {
-            historicalData.push(candle);
-            historicalData.shift(); // Keep array size constant
+            updatedChartData = [...historicalData.slice(1), candle];
             updatedOhlcv = [...ohlcvData.slice(1), newOhlc];
           }
+          historicalData = updatedChartData;
           setOhlcvData(updatedOhlcv);
-          setRsiData(calculateRsi(updatedOhlcv));
+          
+          const newRsiData = calculateRsi(updatedOhlcv);
+          setFullRsiData(newRsiData);
           
           if (candleSeries) {
             candleSeries.update(candle);
           }
-
-          if (smaSeries) {
+          
+          if (showSma && smaSeries) {
               const lastSmaPoint = calculateSma(historicalData, 20).pop();
               if(lastSmaPoint) {
                 smaSeries.update(lastSmaPoint);
               }
+          }
+
+          if(showRsi && rsiSeries) {
+            const lastRsiPoint = newRsiData[newRsiData.length-1];
+            if(lastRsiPoint) {
+              rsiSeries.update(lastRsiPoint);
+            }
           }
         };
 
@@ -290,7 +367,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         chartRef.current.chart = null;
       }
     };
-  }, [symbol, interval]);
+  }, [symbol, interval, showSma, showRsi]);
 
   return (
     <div className="relative h-[500px] w-full">

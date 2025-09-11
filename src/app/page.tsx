@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Bot, Zap } from 'lucide-react';
+import { Bot, Check, Layers, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import TradingChart, { type TradingChartHandle, type OhlcvData } from '@/components/trading-chart';
@@ -20,6 +20,13 @@ import {
 import withAuth from '@/components/auth/with-auth';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 const intervals = ['1h', '4h', '1d', '1w'];
@@ -32,6 +39,15 @@ function Home() {
   const [interval, setInterval] = React.useState('1d');
   const { toast } = useToast();
   const { user } = useAuth();
+  const [indicators, setIndicators] = React.useState({
+    sma: true,
+    rsi: true,
+  });
+
+  const handleIndicatorToggle = (indicator: keyof typeof indicators) => {
+    setIndicators((prev) => ({ ...prev, [indicator]: !prev[indicator] }));
+  };
+
 
   const handleAnalysis = async (question?: string) => {
     if (!chartRef.current) {
@@ -138,6 +154,31 @@ function Home() {
                     </SelectContent>
                   </Select>
                 </div>
+                 <div className="grid w-full max-w-sm items-center gap-1.5">
+                  <Label>Indicators</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-[180px] justify-start">
+                        <Layers className="mr-2" />
+                        <span>Select Indicators</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => handleIndicatorToggle('sma')}>
+                        <div className="w-4">
+                            {indicators.sma && <Check className="h-4 w-4" />}
+                        </div>
+                        <span className="ml-2">20-period SMA</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleIndicatorToggle('rsi')}>
+                         <div className="w-4">
+                            {indicators.rsi && <Check className="h-4 w-4" />}
+                        </div>
+                        <span className="ml-2">RSI</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
             <Button onClick={() => handleAnalysis()} disabled={isLoading} size="lg">
@@ -146,7 +187,13 @@ function Home() {
             </Button>
           </CardHeader>
           <CardContent>
-            <TradingChart ref={chartRef} symbol={symbol} interval={interval} />
+            <TradingChart
+              ref={chartRef}
+              symbol={symbol}
+              interval={interval}
+              showSma={indicators.sma}
+              showRsi={indicators.rsi}
+            />
           </CardContent>
           <CardFooter>
             <p className="text-xs text-muted-foreground">
