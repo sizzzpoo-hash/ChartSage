@@ -10,12 +10,21 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const OhlcvDataSchema = z.object({
+  time: z.string().describe('The timestamp of the candle (ISO 8601 format).'),
+  open: z.number().describe('The opening price.'),
+  high: z.number().describe('The highest price.'),
+  low: z.number().describe('The lowest price.'),
+  close: z.number().describe('The closing price.'),
+});
+
 const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
   chartDataUri: z
     .string()
     .describe(
       "A candlestick chart image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
+  ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart.'),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
   existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
 });
@@ -39,33 +48,40 @@ const prompt = ai.definePrompt({
   name: 'analyzeChartAndGenerateTradeSignalPrompt',
   input: {schema: AnalyzeChartAndGenerateTradeSignalInputSchema},
   output: {schema: AnalyzeChartAndGenerateTradeSignalOutputSchema},
-  prompt: `You are an expert financial analyst specializing in candlestick chart pattern analysis and trade signal generation. 
-  
+  prompt: `You are an expert financial analyst specializing in quantitative analysis of candlestick charts and generating trade signals.
+
+Your primary source of information should be the raw OHLCV data provided. Use the chart image for visual confirmation of patterns, but base your calculations and precise price levels on the raw data.
+
 {{#if question}}
 You are refining a previous analysis based on a user's question.
 Previous Analysis: {{{existingAnalysis}}}
 User Question: {{{question}}}
 Refine the analysis and trade signal based on the question. Do not repeat the previous analysis. Provide a new, more detailed analysis that directly addresses the user's question, and adjust the trade signal if necessary.
 {{else}}
-Analyze the provided candlestick chart image and generate a concise market analysis and a trade signal.
+Analyze the provided candlestick chart image and the corresponding raw OHLCV data to generate a concise market analysis and a trade signal.
 {{/if}}
 
 Chart Image: {{media url=chartDataUri}}
+
+Raw OHLCV Data (use this for calculations):
+\`\`\`json
+{{{json ohlcvData}}}
+\`\`\`
 
 Consider the following technical indicators in your analysis if they are provided:
 - SMA (Simple Moving Average): A 20-period SMA line is visible on the chart.
 - RSI (Relative Strength Index): (No data provided yet)
 - MACD (Moving Average Convergence Divergence): (No data provided yet)
 
-Based on your analysis of the chart patterns and any available indicators, provide the following:
+Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals.
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals. Base price levels and calculations on the raw OHLCV data.
 2.  Trade Signal:
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).
     *   Stop Loss Level: The recommended stop loss level.
 
-Ensure the analysis and trade signal are strictly based on the chart and avoid any creative or random interpretations. Be very accurate and precise. Do not include any explanations. Provide only the output.`,
+Ensure the analysis and trade signal are strictly based on the provided data and avoid any creative or random interpretations. Be very accurate and precise. Do not include any explanations. Provide only the output.`,
 });
 
 const analyzeChartAndGenerateTradeSignalFlow = ai.defineFlow(

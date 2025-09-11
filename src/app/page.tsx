@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Bot, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import TradingChart, { type TradingChartHandle } from '@/components/trading-chart';
+import TradingChart, { type TradingChartHandle, type OhlcvData } from '@/components/trading-chart';
 import { getAiAnalysis } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
@@ -60,6 +60,17 @@ function Home() {
       });
       return;
     }
+    
+    const ohlcvData = chartRef.current.getOhlcvData();
+    if (!ohlcvData || ohlcvData.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Chart data not available',
+        description: 'Could not get the raw chart data. Please try again.',
+      });
+      return;
+    }
+
 
     const dataUri = canvas.toDataURL('image/png');
     
@@ -68,7 +79,7 @@ function Home() {
       setAnalysisResult(null);
     }
 
-    const result = await getAiAnalysis(dataUri, symbol, user.uid, question, analysisResult?.analysis);
+    const result = await getAiAnalysis(dataUri, ohlcvData, symbol, user.uid, question, analysisResult?.analysis);
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);

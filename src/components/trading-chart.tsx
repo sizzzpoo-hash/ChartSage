@@ -13,8 +13,17 @@ import {
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { Skeleton } from './ui/skeleton';
 
+export type OhlcvData = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
 export type TradingChartHandle = {
   takeScreenshot: () => HTMLCanvasElement | undefined;
+  getOhlcvData: () => OhlcvData[];
 };
 
 // Binance API returns data in this format
@@ -46,11 +55,15 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
     smaSeries: ISeriesApi<'Line'> | null;
   }>({ chart: null, series: null, smaSeries: null });
   const [isLoading, setIsLoading] = useState(true);
+  const [ohlcvData, setOhlcvData] = useState<OhlcvData[]>([]);
 
   useImperativeHandle(ref, () => ({
     takeScreenshot: () => {
       return chartRef.current.chart?.takeScreenshot();
     },
+    getOhlcvData: () => {
+      return ohlcvData;
+    }
   }));
 
   // SMA Calculation
@@ -135,6 +148,18 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           close: parseFloat(item[4]),
         }));
 
+        const rawOhlcvData: OhlcvData[] = data.map(item => ({
+          time: new Date(item[0]).toISOString(),
+          open: parseFloat(item[1]),
+          high: parseFloat(item[2]),
+          low: parseFloat(item[3]),
+          close: parseFloat(item[4]),
+        }));
+
+        if (isMounted) {
+          setOhlcvData(rawOhlcvData);
+        }
+        
         historicalData.push(...chartData);
 
         if (isMounted) {
@@ -158,12 +183,22 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
             close: parseFloat(kline.c),
           };
 
+          const newOhlc: OhlcvData = {
+            time: new Date(kline.t).toISOString(),
+            open: parseFloat(kline.o),
+            high: parseFloat(kline.h),
+            low: parseFloat(kline.l),
+            close: parseFloat(kline.c),
+          };
+
           const lastCandle = historicalData[historicalData.length - 1];
           if (candle.time === lastCandle.time) {
             historicalData[historicalData.length - 1] = candle;
+            setOhlcvData(prev => [...prev.slice(0, -1), newOhlc]);
           } else {
             historicalData.push(candle);
             historicalData.shift(); // Keep array size constant
+            setOhlcvData(prev => [...prev.slice(1), newOhlc]);
           }
           
           if (candleSeries) {

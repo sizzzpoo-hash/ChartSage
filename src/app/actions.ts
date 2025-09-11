@@ -2,9 +2,12 @@
 
 import { analyzeChartAndGenerateTradeSignal } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
 import { saveAnalysisResult } from '@/lib/firestore';
+import type { OhlcvData } from '@/components/trading-chart';
+
 
 export async function getAiAnalysis(
   chartDataUri: string, 
+  ohlcvData: OhlcvData[],
   symbol: string,
   userId: string,
   question?: string, 
@@ -18,7 +21,7 @@ export async function getAiAnalysis(
   }
 
   try {
-    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, question, existingAnalysis });
+    const result = await analyzeChartAndGenerateTradeSignal({ chartDataUri, ohlcvData, question, existingAnalysis });
     
     // Save the analysis result to Firestore
     await saveAnalysisResult(result, symbol, chartDataUri, userId);
