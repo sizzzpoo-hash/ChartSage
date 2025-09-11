@@ -16,15 +16,16 @@ const OhlcvDataSchema = z.object({
   high: z.number().describe('The highest price.'),
   low: z.number().describe('The lowest price.'),
   close: z.number().describe('The closing price.'),
+  volume: z.number().describe('The trading volume for the period.'),
 });
 
 const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
   chartDataUri: z
     .string()
     .describe(
-      "A candlestick chart image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A candlestick chart image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'"
     ),
-  ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart.'),
+  ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart, including volume.'),
   rsi: z.number().optional().describe('The latest Relative Strength Index (RSI) value.'),
   macd: z.object({
     macdLine: z.number(),
@@ -98,6 +99,7 @@ Raw OHLCV Data (use this for calculations):
 \`\`\`
 
 Consider the following technical indicators in your analysis, using the specified parameters:
+- Volume Analysis: Use the 'volume' field in the OHLCV data to assess the strength of price movements. High volume on a breakout confirms the move. Low volume on a pullback in an uptrend is bullish. Increasing volume on a downtrend is bearish. Note any significant volume spikes.
 - SMA (Simple Moving Average): {{#if indicatorConfig.sma.visible}}A {{indicatorConfig.sma.period}}-period SMA line is visible on the chart.{{else}}(SMA not used){{/if}}
 - RSI (Relative Strength Index): {{#if rsi}}The current {{indicatorConfig.rsi.period}}-period RSI value is {{rsi}}. Use this to gauge momentum and identify overbought (typically >70) or oversold (typically <30) conditions.{{else}}(RSI not used){{/if}}
 - MACD (Moving Average Convergence Divergence): {{#if macd}}The current MACD ({{indicatorConfig.macd.fast}}, {{indicatorConfig.macd.slow}}, {{indicatorConfig.macd.signal}}) values are: MACD Line={{macd.macdLine}}, Signal Line={{macd.signalLine}}, Histogram={{macd.histogram}}. Use this to identify trend momentum. A positive histogram suggests bullish momentum, a negative one suggests bearish momentum. Crossovers between the MACD and Signal lines can indicate potential buy or sell signals.{{else}}(MACD not used){{/if}}
@@ -106,7 +108,7 @@ Consider the following technical indicators in your analysis, using the specifie
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, strictly filtered through the lens of the primary timeframe trend. Base price levels and calculations on the raw OHLCV data.
+1.  Analysis: A summary analysis of the candlestick chart, highlighting key patterns, trends, and indicator signals, strictly filtered through the lens of the primary timeframe trend. Base price levels and calculations on the raw OHLCV data. Incorporate volume analysis to confirm the strength of your observations.
 2.  Trade Signal: A trade signal that aligns with the primary trend.
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).

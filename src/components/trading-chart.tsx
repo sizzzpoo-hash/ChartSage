@@ -24,6 +24,7 @@ export type OhlcvData = {
   high: number;
   low: number;
   close: number;
+  volume: number;
 };
 
 export type MacdData = {
@@ -407,6 +408,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           high: parseFloat(item[2]),
           low: parseFloat(item[3]),
           close: parseFloat(item[4]),
+          volume: parseFloat(item[5]),
         }));
 
         if (isMounted) {
@@ -466,6 +468,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
             high: parseFloat(kline.h),
             low: parseFloat(kline.l),
             close: parseFloat(kline.c),
+            volume: parseFloat(kline.v),
           };
 
           let updatedOhlcv: OhlcvData[];
