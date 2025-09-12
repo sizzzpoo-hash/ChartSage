@@ -36,7 +36,7 @@ export async function saveAnalysisResult(
     timestamp: serverTimestamp(),
     chartName: symbol,
     analysisSummary: analysis.analysis,
-    tradeSignal: analysis.tradeSignal, // Save the structured object directly
+    tradeSignal: analysis.tradeSignal,
     chartDataUri: chartDataUri,
     swot: analysis.swot,
   };
@@ -94,6 +94,7 @@ export async function getAnalysisHistory(
         analysisSummary: data.analysisSummary,
         tradeSignal: data.tradeSignal,
         chartDataUri: data.chartDataUri,
+        swot: data.swot,
       });
     });
 

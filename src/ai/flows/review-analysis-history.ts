@@ -25,6 +25,13 @@ const TradeSignalSchema = z.object({
   stopLossLevel: z.string(),
 });
 
+const SwotSchema = z.object({
+    strengths: z.array(z.string()),
+    weaknesses: z.array(z.string()),
+    opportunities: z.array(z.string()),
+    threats: z.array(z.string()),
+});
+
 const AnalysisEntrySchema = z.object({
   id: z.string().describe('The unique identifier for the analysis entry.'),
   timestamp: z.string().describe('The timestamp of the analysis.'),
@@ -32,6 +39,7 @@ const AnalysisEntrySchema = z.object({
   analysisSummary: z.string().describe('A summary of the AI analysis.'),
   tradeSignal: TradeSignalSchema.describe('The structured trade signal.'),
   chartDataUri: z.string().optional().describe('A snapshot of the chart at the time of analysis.'),
+  swot: SwotSchema.describe('The SWOT analysis.'),
 });
 
 const ReviewAnalysisHistoryOutputSchema = z.object({

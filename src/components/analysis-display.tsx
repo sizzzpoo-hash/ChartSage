@@ -1,11 +1,12 @@
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowDownRight, ArrowUpRight, Target, XCircle, Sparkles, ShieldCheck, ShieldAlert, Zap as ZapIcon, AlertTriangle } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Target, XCircle, Sparkles } from 'lucide-react';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { useState } from 'react';
 import { AnalysisSkeleton } from './analysis-skeleton';
+import { SwotDisplay } from './swot-display';
 
 type AnalysisDisplayProps = {
   result: AnalyzeChartAndGenerateTradeSignalOutput;
@@ -25,18 +26,6 @@ export function AnalysisDisplay({ result, onRefine, isLoading }: AnalysisDisplay
     }
   };
 
-  const SwotSection = ({ title, items, icon: Icon, variant }: { title: string, items: string[], icon: React.ElementType, variant: 'positive' | 'negative' | 'neutral' }) => (
-    <div>
-        <h4 className={`flex items-center text-sm font-semibold mb-2 ${variant === 'positive' ? 'text-primary' : variant === 'negative' ? 'text-destructive' : 'text-amber-500'}`}>
-            <Icon className="mr-2 h-4 w-4" />
-            {title}
-        </h4>
-        <ul className="space-y-1 text-xs text-muted-foreground list-disc pl-5">
-            {items.map((item, index) => <li key={index}>{item}</li>)}
-        </ul>
-    </div>
-  );
-
   return (
     <div className="space-y-4 animate-in fade-in-50">
       {isLoading ? <AnalysisSkeleton /> : (
@@ -54,11 +43,8 @@ export function AnalysisDisplay({ result, onRefine, isLoading }: AnalysisDisplay
             <CardHeader>
               <CardTitle>SWOT Analysis</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <SwotSection title="Strengths" items={swot.strengths} icon={ShieldCheck} variant="positive" />
-                <SwotSection title="Weaknesses" items={swot.weaknesses} icon={ShieldAlert} variant="negative" />
-                <SwotSection title="Opportunities" items={swot.opportunities} icon={ZapIcon} variant="positive" />
-                <SwotSection title="Threats" items={swot.threats} icon={AlertTriangle} variant="negative" />
+            <CardContent>
+                <SwotDisplay swot={swot} />
             </CardContent>
           </Card>
 

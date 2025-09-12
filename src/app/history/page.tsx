@@ -19,14 +19,21 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { History } from 'lucide-react';
+import { History, Eye } from 'lucide-react';
 import withAuth from '@/components/auth/with-auth';
 import { useEffect, useState, useCallback } from 'react';
 import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
 import { useAuth } from '@/hooks/use-auth';
 import Image from 'next/image';
-import { ArrowDownRight, ArrowUpRight, Target, XCircle } from 'lucide-react';
-
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from '@/components/ui/dialog';
+import { SwotDisplay } from '@/components/swot-display';
 
 const PAGE_SIZE = 10;
 
@@ -36,6 +43,13 @@ export interface TradeSignal {
   stopLossLevel: string;
 }
 
+export interface SwotAnalysis {
+    strengths: string[];
+    weaknesses: string[];
+    opportunities: string[];
+    threats: string[];
+}
+
 export interface AnalysisEntry {
   id: string;
   timestamp: string;
@@ -43,8 +57,8 @@ export interface AnalysisEntry {
   analysisSummary: string;
   tradeSignal: TradeSignal;
   chartDataUri?: string;
+  swot: SwotAnalysis;
 }
-
 
 function HistoryPage() {
   const { user } = useAuth();
@@ -53,6 +67,7 @@ function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isLastPage, setIsLastPage] = useState(false);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<AnalysisEntry | null>(null);
 
   const fetchHistory = useCallback(async (page: number) => {
     if (!user || historyPages[page]) return;
@@ -121,12 +136,13 @@ function HistoryPage() {
                 <TableHead className="w-[150px]">Chart</TableHead>
                 <TableHead className="w-[350px]">Trade Signal</TableHead>
                 <TableHead>Analysis Summary</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     Loading history...
                   </TableCell>
                 </TableRow>
@@ -168,12 +184,18 @@ function HistoryPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.analysisSummary}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground truncate max-w-xs">{item.analysisSummary}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" onClick={() => setSelectedAnalysis(item)}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        View
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     No analysis history found.
                   </TableCell>
                 </TableRow>
@@ -200,6 +222,44 @@ function HistoryPage() {
           </Button>
         </div>
       </CardFooter>
+      
+      {selectedAnalysis && (
+        <Dialog open={!!selectedAnalysis} onOpenChange={(isOpen) => !isOpen && setSelectedAnalysis(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Analysis Details: {selectedAnalysis.chartName} ({new Date(selectedAnalysis.timestamp).toLocaleString()})</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-6 py-4">
+              {selectedAnalysis.chartDataUri && (
+                <div className="flex justify-center">
+                  <Image
+                    src={selectedAnalysis.chartDataUri}
+                    alt={`Chart for ${selectedAnalysis.chartName}`}
+                    width={800}
+                    height={500}
+                    className="rounded-md object-contain"
+                  />
+                </div>
+              )}
+              <Card>
+                <CardHeader><CardTitle>Market Analysis</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-sm text-foreground/90">{selectedAnalysis.analysisSummary}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle>SWOT Analysis</CardTitle></CardHeader>
+                <CardContent>
+                  <SwotDisplay swot={selectedAnalysis.swot} />
+                </CardContent>
+              </Card>
+            </div>
+             <DialogClose asChild>
+                <Button type="button" variant="secondary">Close</Button>
+            </DialogClose>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   );
 }
