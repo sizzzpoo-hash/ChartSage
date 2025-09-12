@@ -224,6 +224,12 @@ function Home() {
 
     if (result.success && result.data) {
       setAnalysisResult(result.data);
+      if (!question) {
+        toast({
+          title: 'Analysis Saved',
+          description: 'Your analysis has been saved to your history.',
+        });
+      }
     } else {
       toast({
         variant: 'destructive',
