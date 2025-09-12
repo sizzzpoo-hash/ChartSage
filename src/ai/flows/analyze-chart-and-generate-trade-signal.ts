@@ -61,6 +61,13 @@ const MacdDataSchema = z.object({
     histogram: z.number(),
 });
 
+const BollingerBandPointSchema = z.object({
+  time: z.string(),
+  upper: z.number(),
+  middle: z.number(),
+  lower: z.number(),
+});
+
 
 const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
   chartDataUri: z
@@ -72,11 +79,7 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
   interval: z.string().optional().describe("The interval of the chart (e.g., '5m', '1h', '1d')."),
   rsiData: z.array(IndicatorDataSchema).optional().describe('The historical Relative Strength Index (RSI) data series.'),
   macdData: z.array(MacdDataSchema).optional().describe('The historical MACD data series (MACD line, signal line, and histogram).'),
-  bollingerBands: z.object({
-    upper: z.number(),
-    middle: z.number(),
-    lower: z.number(),
-  }).optional().describe('The latest Bollinger Bands values.'),
+  bollingerBandsData: z.array(BollingerBandPointSchema).optional().describe('The historical Bollinger Bands data series (upper, middle, lower).'),
   higherTimeframe: z.string().optional().describe("The higher timeframe to consider for the primary trend (e.g., '1w' for a '1d' chart)."),
   htfOhlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the higher timeframe. Analyze this first to establish the primary trend context.'),
   indicatorConfig: z.any().optional().describe('The configuration for the technical indicators.'),
@@ -132,6 +135,7 @@ const prompt = ai.definePrompt({
         *   **Price Action:** Identify key patterns (e.g., head and shoulders, flags, triangles), immediate support/resistance levels, and candlestick formations.
         *   **Volume Analysis:** Critically examine the volume data (\`ohlcvData\`). Does volume confirm the price trend (e.g., high volume on a breakout)? Or does it show weakness (e.g., declining volume on a rally)? Volume is your lie detector.
         *   **Indicator Analysis:** Look for convergences and, most importantly, **divergences** between price and the provided RSI and MACD data. A bearish divergence (higher price, lower indicator high) is a strong warning. A bullish divergence (lower price, higher indicator low) is a strong sign of potential bottoming.
+        *   **Volatility Analysis:** Examine the Bollinger Bands (\`bollingerBandsData\`). Identify if the bands are expanding (increasing volatility) or contracting (a "squeeze", indicating a potential for a large move). Note how the price is interacting with the bands (e.g., "walking the band" in a strong trend, or respecting the middle band as support/resistance).
 
 4.  **Synthesize and Filter:**
     *   **Strictly filter trades by the Primary Trend.** If the primary trend is bullish, you should ONLY be looking for long (buy) opportunities on the execution timeframe. If the primary trend is bearish, ONLY look for short (sell) opportunities. Do not generate a signal that fights the primary trend. If there's no valid setup, state that clearly.
@@ -159,13 +163,10 @@ Raw Data for Analysis (use for detailed calculations):
   {{/if}}
   "executionTimeframe ({{interval}}) OHLCV": {{{ohlcvData}}},
   "RSI ({{interval}})": {{{rsiData}}},
-  "MACD ({{interval}})": {{{macdData}}}
+  "MACD ({{interval}})": {{{macdData}}},
+  "BollingerBands ({{interval}})": {{{bollingerBandsData}}}
 }
 \`\`\`
-
-Latest Indicator Values on {{interval}}:
-- Bollinger Bands: {{#if bollingerBands}}Upper={{bollingerBands.upper}}, Middle={{bollingerBands.middle}}, Lower={{bollingerBands.lower}}{{else}}N/A{{/if}}
-
 
 **Output Requirements:**
 

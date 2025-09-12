@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Bot, Check, Layers, Settings, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import TradingChart, { type TradingChartHandle, type MacdChartData, type OhlcvData, type RsiData } from '@/components/trading-chart';
+import TradingChart, { type TradingChartHandle, type MacdChartData, type OhlcvData, type RsiData, type BollingerBandsData } from '@/components/trading-chart';
 import { getAiAnalysis } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';

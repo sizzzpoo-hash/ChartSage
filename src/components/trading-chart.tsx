@@ -32,6 +32,7 @@ export type MacdChartData = { time: string; macd: number; signal: number; histog
 
 
 export type BollingerBandsData = {
+    time: string;
     upper: number;
     middle: number;
     lower: number;
@@ -42,7 +43,7 @@ export type TradingChartHandle = {
   getOhlcvData: () => OhlcvData[];
   getRsiData: () => RsiData[] | undefined;
   getMacdData: () => MacdChartData[] | undefined;
-  getBollingerBandsData: () => BollingerBandsData | undefined;
+  getBollingerBandsData: () => BollingerBandsData[] | undefined;
 };
 
 // Binance API returns data in this format
@@ -82,9 +83,12 @@ type MacdCalculatedData = {
 };
 
 type BollingerBandsCalculatedData = {
-    upper: (LineData | WhitespaceData)[];
-    middle: (LineData | WhitespaceData)[];
-    lower: (LineData | WhitespaceData)[];
+    chartData: {
+        upper: (LineData | WhitespaceData)[];
+        middle: (LineData | WhitespaceData)[];
+        lower: (LineData | WhitespaceData)[];
+    };
+    apiData: BollingerBandsData[];
 };
 
 
@@ -107,7 +111,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
   const [ohlcvData, setOhlcvData] = useState<OhlcvData[]>([]);
   const [fullRsiData, setFullRsiData] = useState<RsiData[]>([]);
   const [fullMacdData, setFullMacdData] = useState<MacdChartData[]>([]);
-  const [fullBollingerBandsData, setFullBollingerBandsData] = useState<BollingerBandsCalculatedData>({ upper: [], middle: [], lower: [] });
+  const [fullBollingerBandsData, setFullBollingerBandsData] = useState<BollingerBandsData[]>([]);
 
 
   useImperativeHandle(ref, () => ({
@@ -124,50 +128,56 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       return macdConfig.visible ? fullMacdData : undefined;
     },
     getBollingerBandsData: () => {
-        const lastUpper = fullBollingerBandsData.upper.slice().reverse().find(d => 'value' in d) as LineData | undefined;
-        const lastMiddle = fullBollingerBandsData.middle.slice().reverse().find(d => 'value' in d) as LineData | undefined;
-        const lastLower = fullBollingerBandsData.lower.slice().reverse().find(d => 'value' in d) as LineData | undefined;
-        if (lastUpper && lastMiddle && lastLower) {
-            return {
-                upper: lastUpper.value,
-                middle: lastMiddle.value,
-                lower: lastLower.value,
-            }
-        }
-        return undefined;
+        return bollingerBandsConfig.visible ? fullBollingerBandsData : undefined;
     }
   }));
 
   // Bollinger Bands Calculation
   const calculateBollingerBands = (data: OhlcvData[], period: number, stdDev: number): BollingerBandsCalculatedData => {
-    if(data.length < period) return { upper: [], middle: [], lower: [] };
+    if (data.length < period) return { chartData: { upper: [], middle: [], lower: [] }, apiData: [] };
 
-    const middleBandData = calculateSma(data, period);
-    const upperBandData: (LineData | WhitespaceData)[] = [];
-    const lowerBandData: (LineData | WhitespaceData)[] = [];
+    const middleBandSma = calculateSma(data, period);
+    const apiData: BollingerBandsData[] = [];
+    const chartData: BollingerBandsCalculatedData['chartData'] = {
+        upper: [],
+        middle: [],
+        lower: [],
+    };
 
     for (let i = 0; i < data.length; i++) {
-      const time = new Date(data[i].time).getTime() / 1000 as UTCTimestamp;
-      if (i < period - 1) {
-        upperBandData.push({ time });
-        lowerBandData.push({ time });
-        continue;
-      }
+        const time = new Date(data[i].time).getTime() / 1000 as UTCTimestamp;
+        if (i < period - 1) {
+            chartData.upper.push({ time });
+            chartData.middle.push({ time });
+            chartData.lower.push({ time });
+            continue;
+        }
 
-      let sumSqDiff = 0;
-      const middleValue = (middleBandData[i] as LineData).value;
+        const middleValue = (middleBandSma[i] as LineData).value;
+        chartData.middle.push({ time, value: middleValue });
 
-      for (let j = i - period + 1; j <= i; j++) {
-        sumSqDiff += Math.pow(data[j].close - middleValue, 2);
-      }
-      const standardDeviation = Math.sqrt(sumSqDiff / period);
-      
-      upperBandData.push({ time, value: middleValue + stdDev * standardDeviation });
-      lowerBandData.push({ time, value: middleValue - stdDev * standardDeviation });
+        let sumSqDiff = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            sumSqDiff += Math.pow(data[j].close - middleValue, 2);
+        }
+        const standardDeviation = Math.sqrt(sumSqDiff / period);
+        
+        const upperValue = middleValue + stdDev * standardDeviation;
+        const lowerValue = middleValue - stdDev * standardDeviation;
+
+        chartData.upper.push({ time, value: upperValue });
+        chartData.lower.push({ time, value: lowerValue });
+
+        apiData.push({
+            time: data[i].time,
+            upper: upperValue,
+            middle: middleValue,
+            lower: lowerValue,
+        });
     }
 
-    return { upper: upperBandData, middle: middleBandData, lower: lowerBandData };
-  };
+    return { chartData, apiData };
+};
 
   // RSI Calculation
   const calculateRsi = (data: OhlcvData[], period = 14): { chartData: (LineData<Time> | WhitespaceData<Time>)[], apiData: RsiData[] } => {
@@ -419,10 +429,10 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
           if(bollingerBandsConfig.visible && bbUpperSeries && bbMiddleSeries && bbLowerSeries) {
               const bbResult = calculateBollingerBands(rawOhlcvData, bollingerBandsConfig.period, bollingerBandsConfig.stdDev);
-              setFullBollingerBandsData(bbResult);
-              bbUpperSeries.setData(bbResult.upper);
-              bbMiddleSeries.setData(bbResult.middle);
-              bbLowerSeries.setData(bbResult.lower);
+              setFullBollingerBandsData(bbResult.apiData);
+              bbUpperSeries.setData(bbResult.chartData.upper);
+              bbMiddleSeries.setData(bbResult.chartData.middle);
+              bbLowerSeries.setData(bbResult.chartData.lower);
           }
         }
         
@@ -503,10 +513,10 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           }
            if(bollingerBandsConfig.visible && bbUpperSeries && bbMiddleSeries && bbLowerSeries) {
                 const newBbData = calculateBollingerBands(updatedOhlcv, bollingerBandsConfig.period, bollingerBandsConfig.stdDev);
-                setFullBollingerBandsData(newBbData);
-                const lastUpper = newBbData.upper[newBbData.upper.length - 1];
-                const lastMiddle = newBbData.middle[newBbData.middle.length - 1];
-                const lastLower = newBbData.lower[newBbData.lower.length - 1];
+                setFullBollingerBandsData(newBbData.apiData);
+                const lastUpper = newBbData.chartData.upper[newBbData.chartData.upper.length - 1];
+                const lastMiddle = newBbData.chartData.middle[newBbData.chartData.middle.length - 1];
+                const lastLower = newBbData.chartData.lower[newBbData.chartData.lower.length - 1];
                 if (lastUpper) bbUpperSeries.update(lastUpper as LineData);
                 if (lastMiddle) bbMiddleSeries.update(lastMiddle as LineData);
                 if (lastLower) bbLowerSeries.update(lastLower as LineData);
