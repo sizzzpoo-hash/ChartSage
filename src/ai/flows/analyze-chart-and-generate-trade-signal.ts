@@ -48,6 +48,12 @@ export type AnalyzeChartAndGenerateTradeSignalInput = z.infer<typeof AnalyzeChar
 
 const AnalyzeChartAndGenerateTradeSignalOutputSchema = z.object({
   analysis: z.string().describe('A summary analysis of the candlestick chart.'),
+  swot: z.object({
+      strengths: z.array(z.string()).describe('Strengths of the current market position (e.g., strong bullish pattern, high volume support).'),
+      weaknesses: z.array(z.string()).describe('Weaknesses of the current market position (e.g., proximity to resistance, bearish divergence).'),
+      opportunities: z.array(z.string()).describe('Potential opportunities (e.g., upcoming breakout, potential trend reversal).'),
+      threats: z.array(z.string()).describe('Potential threats (e.g., major economic event, breakdown of support).'),
+  }).describe('A SWOT analysis of the current chart setup.'),
   tradeSignal: z.object({
     entryPriceRange: z.string().describe('The recommended entry price range.'),
     takeProfitLevels: z.array(z.string()).describe('The recommended take profit levels.'),
@@ -132,8 +138,13 @@ Consider the following technical indicators in your analysis, using the specifie
 
 Based on your quantitative analysis of the data and visual confirmation from the chart, provide the following:
 
-1.  Analysis: A summary analysis of the candlestick chart, highlighting key candlestick patterns, trends, and indicator signals, strictly filtered through the lens of the primary timeframe trend and your agent persona. Base price levels and calculations on the raw OHLCV data. Incorporate volume analysis to confirm the strength of your observations.
-2.  Trade Signal: A trade signal that aligns with the primary trend and your agent persona.
+1.  **Analysis**: A summary analysis of the candlestick chart, highlighting key candlestick patterns, trends, and indicator signals, strictly filtered through the lens of the primary timeframe trend and your agent persona. Base price levels and calculations on the raw OHLCV data. Incorporate volume analysis to confirm the strength of your observations.
+2.  **SWOT Analysis**: Provide a SWOT analysis for the potential trade signal.
+    *   **Strengths**: Internal, positive factors based on the chart. Examples: "Strong bullish engulfing pattern confirmed by high volume," "Price is bouncing off the 20-period SMA on the higher timeframe."
+    *   **Weaknesses**: Internal, negative factors based on the chart. Examples: "RSI is approaching overbought territory," "Price is close to a major historical resistance level."
+    *   **Opportunities**: External or potential positive future events. Examples: "Potential for a short squeeze if price breaks the upcoming resistance," "A breakout from the current consolidation pattern could lead to a significant move."
+    *   **Threats**: External or potential negative future events. Examples: "An upcoming economic news release could introduce high volatility," "Failure to break resistance could lead to a sharp reversal."
+3.  **Trade Signal**: A trade signal that aligns with the primary trend and your agent persona.
     *   Entry Price Range: The recommended entry price range.
     *   Take Profit Levels: The recommended take profit levels (at least one).
     *   Stop Loss Level: The recommended stop loss level.
