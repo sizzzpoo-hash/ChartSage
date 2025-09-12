@@ -19,12 +19,18 @@ const ReviewAnalysisHistoryInputSchema = z.object({
 });
 export type ReviewAnalysisHistoryInput = z.infer<typeof ReviewAnalysisHistoryInputSchema>;
 
+const TradeSignalSchema = z.object({
+  entryPriceRange: z.string(),
+  takeProfitLevels: z.array(z.string()),
+  stopLossLevel: z.string(),
+});
+
 const AnalysisEntrySchema = z.object({
   id: z.string().describe('The unique identifier for the analysis entry.'),
   timestamp: z.string().describe('The timestamp of the analysis.'),
   chartName: z.string().describe('The name or identifier of the chart analyzed.'),
   analysisSummary: z.string().describe('A summary of the AI analysis.'),
-  tradeSignal: z.string().describe('The generated trade signal.'),
+  tradeSignal: TradeSignalSchema.describe('The structured trade signal.'),
   chartDataUri: z.string().optional().describe('A snapshot of the chart at the time of analysis.'),
 });
 
@@ -45,6 +51,7 @@ const reviewAnalysisHistoryFlow = ai.defineFlow({
   },
   async ({ userId, limit, startAfter }) => {
     const history = await getAnalysisHistory(userId, limit, startAfter);
-    return { history };
+    // Zod validation will happen automatically on the return value
+    return { history: history as any };
   }
 );

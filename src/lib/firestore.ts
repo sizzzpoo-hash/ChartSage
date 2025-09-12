@@ -15,7 +15,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
-import type { AnalysisEntry } from '@/ai/flows/review-analysis-history';
+import type { AnalysisEntry } from '@/app/history/page';
 
 const db = getFirestore(app);
 
@@ -36,8 +36,9 @@ export async function saveAnalysisResult(
     timestamp: serverTimestamp(),
     chartName: symbol,
     analysisSummary: analysis.analysis,
-    tradeSignal: `Entry: ${analysis.tradeSignal.entryPriceRange}, TP: ${analysis.tradeSignal.takeProfitLevels.join(', ')}, SL: ${analysis.tradeSignal.stopLossLevel}`,
+    tradeSignal: analysis.tradeSignal, // Save the structured object directly
     chartDataUri: chartDataUri,
+    swot: analysis.swot,
   };
 
   console.log('Data to be saved:', dataToSave);
