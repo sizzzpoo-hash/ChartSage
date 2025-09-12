@@ -19,7 +19,7 @@ const ReviewAnalysisHistoryInputSchema = z.object({
 });
 export type ReviewAnalysisHistoryInput = z.infer<typeof ReviewAnalysisHistoryInputSchema>;
 
-export const AnalysisEntrySchema = z.object({
+const AnalysisEntrySchema = z.object({
   id: z.string().describe('The unique identifier for the analysis entry.'),
   timestamp: z.string().describe('The timestamp of the analysis.'),
   chartName: z.string().describe('The name or identifier of the chart analyzed.'),
@@ -27,8 +27,6 @@ export const AnalysisEntrySchema = z.object({
   tradeSignal: z.string().describe('The generated trade signal.'),
   chartDataUri: z.string().optional().describe('A snapshot of the chart at the time of analysis.'),
 });
-
-export type AnalysisEntry = z.infer<typeof AnalysisEntrySchema>;
 
 const ReviewAnalysisHistoryOutputSchema = z.object({
     history: z.array(AnalysisEntrySchema).describe('An array of analysis history entries for the current page.'),

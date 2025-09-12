@@ -22,11 +22,21 @@ import { Button } from '@/components/ui/button';
 import { History } from 'lucide-react';
 import withAuth from '@/components/auth/with-auth';
 import { useEffect, useState, useCallback } from 'react';
-import type { ReviewAnalysisHistoryOutput, AnalysisEntry } from '@/ai/flows/review-analysis-history';
+import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
 import { useAuth } from '@/hooks/use-auth';
 import Image from 'next/image';
 
 const PAGE_SIZE = 10;
+
+export interface AnalysisEntry {
+  id: string;
+  timestamp: string;
+  chartName: string;
+  analysisSummary: string;
+  tradeSignal: string;
+  chartDataUri?: string;
+}
+
 
 function HistoryPage() {
   const { user } = useAuth();
@@ -42,13 +52,13 @@ function HistoryPage() {
     setLoading(true);
     try {
       const startAfter = lastDocTimestamps[page] || null;
-      const result = await reviewAnalysisHistory({
+      const result: ReviewAnalysisHistoryOutput = await reviewAnalysisHistory({
         userId: user.uid,
         limit: PAGE_SIZE,
         startAfter,
       });
       
-      const newHistory = result.history;
+      const newHistory = result.history as AnalysisEntry[];
 
       setHistoryPages(prev => ({ ...prev, [page]: newHistory }));
 
