@@ -139,12 +139,14 @@ Chart Image: {{media url=chartDataUri}}
 
 Raw Data for Analysis (use for detailed calculations):
 \`\`\`json
-{{#if htfOhlcvData}}
-Higher Timeframe ({{higherTimeframe}}) OHLCV: {{{json htfOhlcvData}}}
-{{/if}}
-Execution Timeframe ({{interval}}) OHLCV: {{{json ohlcvData}}}
-RSI ({{interval}}): {{{json rsiData}}}
-MACD ({{interval}}): {{{json macdData}}}
+{
+  {{#if htfOhlcvData}}
+  "higherTimeframe ({{higherTimeframe}}) OHLCV": {{{htfOhlcvData}}},
+  {{/if}}
+  "executionTimeframe ({{interval}}) OHLCV": {{{ohlcvData}}},
+  "RSI ({{interval}})": {{{rsiData}}},
+  "MACD ({{interval}})": {{{macdData}}}
+}
 \`\`\`
 
 Latest Indicator Values on {{interval}}:
@@ -153,7 +155,7 @@ Latest Indicator Values on {{interval}}:
 
 **Output Requirements:**
 
-1.  **Analysis**: A summary that starts with the fundamental context from your search and the primary trend context from the higher timeframe. Follow with a detailed technical analysis of the main chart covering price action, volume, and indicators (especially divergences).
+1.  **Analysis**: A summary that starts with the fundamental context from your search and the primary trend context from the higher timefra. Follow with a detailed technical analysis of the main chart covering price action, volume, and indicators (especially divergences).
 2.  **SWOT Analysis**:
     *   **Strengths/Weaknesses**: Internal factors from the chart (patterns, indicators, divergences, volume confirmation).
     *   **Opportunities/Threats**: External factors from your news search and macro context from the higher timeframe analysis.
@@ -171,5 +173,3 @@ const analyzeChartAndGenerateTradeSignalFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    
