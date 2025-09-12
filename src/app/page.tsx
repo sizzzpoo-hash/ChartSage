@@ -37,6 +37,7 @@ import type { BinanceKline } from '@/components/trading-chart';
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
 const intervals = ['5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '3d', '1w'];
 const higherTimeframes = ['1d', '3d', '1w', '1M'];
+const SETTINGS_KEY = 'chartSageSettings';
 
 
 function Home() {
@@ -57,6 +58,38 @@ function Home() {
     bollinger: { visible: false, period: 20, stdDev: 2 },
   });
   
+  // Load settings from localStorage on initial render
+  React.useEffect(() => {
+    try {
+      const savedSettings = localStorage.getItem(SETTINGS_KEY);
+      if (savedSettings) {
+        const { symbol, interval, higherTimeframe, indicators } = JSON.parse(savedSettings);
+        if (symbol) setSymbol(symbol);
+        if (interval) setInterval(interval);
+        if (higherTimeframe) setHigherTimeframe(higherTimeframe);
+        if (indicators) setIndicators(indicators);
+      }
+    } catch (error) {
+      console.error("Could not load settings from localStorage", error);
+    }
+  }, []);
+
+  // Save settings to localStorage whenever they change
+  React.useEffect(() => {
+    try {
+      const settingsToSave = {
+        symbol,
+        interval,
+        higherTimeframe,
+        indicators,
+      };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsToSave));
+    } catch (error) {
+       console.error("Could not save settings to localStorage", error);
+    }
+  }, [symbol, interval, higherTimeframe, indicators]);
+
+
   React.useEffect(() => {
     const fetchHtfData = async () => {
       if (!higherTimeframe) {
@@ -385,7 +418,3 @@ function Home() {
 }
 
 export default withAuth(Home);
-
-    
-
-    
