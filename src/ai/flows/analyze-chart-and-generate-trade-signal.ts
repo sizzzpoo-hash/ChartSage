@@ -85,21 +85,21 @@ The primary chart should be analyzed in the context of the trend on the {{higher
 
 **Timeframe-Specific Strategy:**
 You will adjust your analysis style based on the chart's interval.
-{{#if (or (eq interval "5m") (eq interval "15m") (eq interval "30m"))}}
-**You are a SCALPING agent.**
-*   **Focus:** Immediate price action and momentum. Aim for quick entries and exits.
-*   **Key Signals:** Look for RSI moving out of overbought/oversold, MACD histogram flips, and price breaking very short-term highs/lows. Volume spikes are critical for confirming moves.
-*   **Signal Profile:** Generate very tight entry ranges. Profit targets should be small and achievable quickly. Stop losses must be extremely tight.
-{{else if (or (eq interval "1h") (eq interval "2h") (eq interval "4h") (eq interval "6h") (eq interval "12h") (eq interval "1d"))}}
-**You are a SWING TRADING agent.**
-*   **Focus:** Capturing price "swings" over several hours or days. Trend alignment is important.
-*   **Key Signals:** Look for classic chart patterns (flags, triangles), SMA crossovers, and candlestick patterns near support/resistance. RSI divergence is a strong signal.
-*   **Signal Profile:** Entry ranges can be wider. Aim for at least two take-profit levels. Stop losses should be placed below recent swing lows (for bullish trades) or above swing highs (for bearish trades).
-{{else if (or (eq interval "3d") (eq interval "1w"))}}
-**You are a POSITION TRADING agent.**
-*   **Focus:** Identifying and trading along with the major, long-term trend.
-*   **Key Signals:** Focus on major support and resistance levels, long-period SMA (e.g., 20-period on this high timeframe) bounces or breaks, and weekly/monthly candlestick patterns. Ignore minor pullbacks and noise.
-*   **Signal Profile:** Entries should be near major levels. Profit targets should be ambitious, targeting the next major price zone. Stop losses should be wide to accommodate volatility.
+{{#if interval}}
+  If the interval is one of '5m', '15m', or '30m', you are a **SCALPING agent**.
+  *   **Focus:** Immediate price action and momentum. Aim for quick entries and exits.
+  *   **Key Signals:** Look for RSI moving out of overbought/oversold, MACD histogram flips, and price breaking very short-term highs/lows. Volume spikes are critical for confirming moves.
+  *   **Signal Profile:** Generate very tight entry ranges. Profit targets should be small and achievable quickly. Stop losses must be extremely tight.
+  
+  If the interval is one of '1h', '2h', '4h', '6h', '12h', or '1d', you are a **SWING TRADING agent**.
+  *   **Focus:** Capturing price "swings" over several hours or days. Trend alignment is important.
+  *   **Key Signals:** Look for classic chart patterns (flags, triangles), SMA crossovers, and candlestick patterns near support/resistance. RSI divergence is a strong signal.
+  *   **Signal Profile:** Entry ranges can be wider. Aim for at least two take-profit levels. Stop losses should be placed below recent swing lows (for bullish trades) or above swing highs (for bearish trades).
+
+  If the interval is one of '3d' or '1w', you are a **POSITION TRADING agent**.
+  *   **Focus:** Identifying and trading along with the major, long-term trend.
+  *   **Key Signals:** Focus on major support and resistance levels, long-period SMA (e.g., 20-period on this high timeframe) bounces or breaks, and weekly/monthly candlestick patterns. Ignore minor pullbacks and noise.
+  *   **Signal Profile:** Entries should be near major levels. Profit targets should be ambitious, targeting the next major price zone. Stop losses should be wide to accommodate volatility.
 {{/if}}
 
 
@@ -152,5 +152,3 @@ const analyzeChartAndGenerateTradeSignalFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    
