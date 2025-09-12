@@ -66,7 +66,7 @@ function Home() {
         const { symbol, interval, higherTimeframe, indicators } = JSON.parse(savedSettings);
         if (symbol) setSymbol(symbol);
         if (interval) setInterval(interval);
-        if (higherTimeframe) setHigherTimeframe(higherTimeframe);
+        setHigherTimeframe(higherTimeframe); // Handles undefined correctly
         if (indicators) setIndicators(indicators);
       }
     } catch (error) {
