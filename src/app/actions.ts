@@ -2,7 +2,7 @@
 
 import { analyzeChartAndGenerateTradeSignal } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
 import { saveAnalysisResult } from '@/lib/firestore';
-import type { OhlcvData, MacdData, BollingerBandsData } from '@/components/trading-chart';
+import type { OhlcvData, MacdChartData, BollingerBandsData, RsiData } from '@/components/trading-chart';
 
 
 export async function getAiAnalysis(
@@ -11,8 +11,8 @@ export async function getAiAnalysis(
   symbol: string,
   interval: string,
   userId: string,
-  rsi: number | undefined,
-  macd: MacdData | undefined,
+  rsiData: RsiData[] | undefined,
+  macdData: MacdChartData[] | undefined,
   bollingerBands: BollingerBandsData | undefined,
   higherTimeframe: string | undefined,
   isPriceAboveHtfSma: boolean | undefined,
@@ -32,8 +32,8 @@ export async function getAiAnalysis(
       chartDataUri, 
       ohlcvData,
       interval, 
-      rsi, 
-      macd, 
+      rsiData, 
+      macdData, 
       bollingerBands,
       higherTimeframe,
       isPriceAboveHtfSma,
@@ -53,3 +53,5 @@ export async function getAiAnalysis(
     return { success: false, error: 'The AI model failed to process the request. Please try again later.' };
   }
 }
+
+    

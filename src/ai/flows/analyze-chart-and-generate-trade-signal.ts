@@ -49,6 +49,19 @@ const OhlcvDataSchema = z.object({
   volume: z.number().describe('The trading volume for the period.'),
 });
 
+const IndicatorDataSchema = z.object({
+    time: z.string(),
+    value: z.number(),
+});
+
+const MacdDataSchema = z.object({
+    time: z.string(),
+    macd: z.number(),
+    signal: z.number(),
+    histogram: z.number(),
+});
+
+
 const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
   chartDataUri: z
     .string()
@@ -57,12 +70,8 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
     ),
   ohlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the chart, including volume.'),
   interval: z.string().optional().describe("The interval of the chart (e.g., '5m', '1h', '1d')."),
-  rsi: z.number().optional().describe('The latest Relative Strength Index (RSI) value.'),
-  macd: z.object({
-    macdLine: z.number(),
-    signalLine: z.number(),
-    histogram: z.number(),
-  }).optional().describe('The latest MACD values.'),
+  rsiData: z.array(IndicatorDataSchema).optional().describe('The historical Relative Strength Index (RSI) data series.'),
+  macdData: z.array(MacdDataSchema).optional().describe('The historical MACD data series (MACD line, signal line, and histogram).'),
   bollingerBands: z.object({
     upper: z.number(),
     middle: z.number(),
@@ -106,7 +115,10 @@ const prompt = ai.definePrompt({
 **Your Process:**
 1.  **Fundamental Analysis First:** Before analyzing the chart, you MUST use the \`googleSearch\` tool to find recent news, market sentiment, and economic events related to the symbol. Formulate a clear query like "Recent news and market sentiment for BTCUSDT".
 2.  **Synthesize Findings:** Integrate the findings from your search into your overall analysis. The search results provide the "why" (fundamental context) behind the "what" (price action).
-3.  **Technical Analysis:** Perform a detailed technical analysis of the chart and the provided OHLCV data, guided by the fundamental context.
+3.  **Technical Analysis:** Perform a detailed technical analysis of the chart and the provided OHLCV data. Your analysis MUST incorporate:
+    *   **Price Action:** Identify key patterns (e.g., head and shoulders, flags, triangles), support/resistance levels, and candlestick formations.
+    *   **Volume Analysis:** Critically examine the volume data. Does volume confirm the price trend (e.g., high volume on a breakout)? Or does it show weakness (e.g., declining volume on a rally)?
+    *   **Indicator Analysis:** Look for convergences and, most importantly, **divergences** between price and the provided RSI and MACD data. A bearish divergence (higher price, lower indicator) is a strong warning sign. A bullish divergence (lower price, higher indicator) is a strong sign of a potential bottom.
 4.  **Filter by Primary Trend:** Adhere strictly to the multi-timeframe strategy. If a higher timeframe trend is provided, only generate signals that align with it.
 5.  **Adopt Agent Persona:** Adjust your trading style (Scalping, Swing, Position) based on the chart's interval.
 
@@ -134,22 +146,22 @@ Analyze the provided chart and data to generate a market analysis and trade sign
 
 Chart Image: {{media url=chartDataUri}}
 
-Raw OHLCV Data (use for calculations):
+Raw OHLCV & Indicator Data (use for detailed calculations):
 \`\`\`json
-{{{json ohlcvData}}}
+OHLCV: {{{json ohlcvData}}}
+RSI: {{{json rsiData}}}
+MACD: {{{json macdData}}}
 \`\`\`
 
-Technical Indicators:
-- RSI: {{#if rsi}}{{rsi}}{{else}}N/A{{/if}}
-- MACD: {{#if macd}}MACD Line={{macd.macdLine}}, Signal Line={{macd.signalLine}}{{else}}N/A{{/if}}
+Latest Indicator Values:
 - Bollinger Bands: {{#if bollingerBands}}Upper={{bollingerBands.upper}}, Lower={{bollingerBands.lower}}{{else}}N/A{{/if}}
 
 
 **Output Requirements:**
 
-1.  **Analysis**: A summary that starts with the fundamental context from your search, followed by technical analysis.
+1.  **Analysis**: A summary that starts with the fundamental context from your search, followed by a detailed technical analysis covering price action, volume, and indicators (especially divergences).
 2.  **SWOT Analysis**:
-    *   **Strengths/Weaknesses**: Internal factors from the chart (patterns, indicators).
+    *   **Strengths/Weaknesses**: Internal factors from the chart (patterns, indicators, divergences, volume confirmation).
     *   **Opportunities/Threats**: External factors from your news search (e.g., positive regulatory news, upcoming economic events).
 3.  **Trade Signal**: A signal (entry, take profit, stop loss) that is consistent with your analysis and persona.`,
 });
@@ -165,3 +177,5 @@ const analyzeChartAndGenerateTradeSignalFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

@@ -27,11 +27,9 @@ export type OhlcvData = {
   volume: number;
 };
 
-export type MacdData = {
-  macdLine: number;
-  signalLine: number;
-  histogram: number;
-};
+export type RsiData = { time: string; value: number };
+export type MacdChartData = { time: string; macd: number; signal: number; histogram: number };
+
 
 export type BollingerBandsData = {
     upper: number;
@@ -42,8 +40,8 @@ export type BollingerBandsData = {
 export type TradingChartHandle = {
   takeScreenshot: () => HTMLCanvasElement | undefined;
   getOhlcvData: () => OhlcvData[];
-  getRsiData: () => number | undefined;
-  getMacdData: () => MacdData | undefined;
+  getRsiData: () => RsiData[] | undefined;
+  getMacdData: () => MacdChartData[] | undefined;
   getBollingerBandsData: () => BollingerBandsData | undefined;
 };
 
@@ -80,6 +78,7 @@ type MacdCalculatedData = {
   macdLine: (LineData | WhitespaceData)[];
   signalLine: (LineData | WhitespaceData)[];
   histogram: (HistogramData | WhitespaceData)[];
+  macdForApi: MacdChartData[];
 };
 
 type BollingerBandsCalculatedData = {
@@ -106,8 +105,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
   const [isLoading, setIsLoading] = useState(true);
   const [ohlcvData, setOhlcvData] = useState<OhlcvData[]>([]);
-  const [fullRsiData, setFullRsiData] = useState<(LineData | WhitespaceData)[]>([]);
-  const [fullMacdData, setFullMacdData] = useState<MacdCalculatedData>({ macdLine: [], signalLine: [], histogram: [] });
+  const [fullRsiData, setFullRsiData] = useState<RsiData[]>([]);
+  const [fullMacdData, setFullMacdData] = useState<MacdChartData[]>([]);
   const [fullBollingerBandsData, setFullBollingerBandsData] = useState<BollingerBandsCalculatedData>({ upper: [], middle: [], lower: [] });
 
 
@@ -119,25 +118,10 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
       return ohlcvData;
     },
     getRsiData: () => {
-       const lastRsiPoint = fullRsiData.slice().reverse().find(d => 'value' in d);
-       if (lastRsiPoint && 'value' in lastRsiPoint) {
-         return lastRsiPoint.value;
-       }
-       return undefined;
+       return rsiConfig.visible ? fullRsiData : undefined;
     },
     getMacdData: () => {
-      const lastMacd = fullMacdData.macdLine.slice().reverse().find(d => 'value' in d) as LineData | undefined;
-      const lastSignal = fullMacdData.signalLine.slice().reverse().find(d => 'value' in d) as LineData | undefined;
-      const lastHist = fullMacdData.histogram.slice().reverse().find(d => 'value' in d) as HistogramData | undefined;
-      
-      if (lastMacd && lastSignal && lastHist) {
-        return {
-          macdLine: lastMacd.value,
-          signalLine: lastSignal.value,
-          histogram: lastHist.value,
-        }
-      }
-      return undefined;
+      return macdConfig.visible ? fullMacdData : undefined;
     },
     getBollingerBandsData: () => {
         const lastUpper = fullBollingerBandsData.upper.slice().reverse().find(d => 'value' in d) as LineData | undefined;
@@ -186,21 +170,17 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
   };
 
   // RSI Calculation
-  const calculateRsi = (data: OhlcvData[], period: number = 14): (LineData<Time> | WhitespaceData<Time>)[] => {
-    const rsiValues: (LineData<Time> | WhitespaceData<Time>)[] = [];
-    if (data.length < period) return [];
+  const calculateRsi = (data: OhlcvData[], period = 14): { chartData: (LineData<Time> | WhitespaceData<Time>)[], apiData: RsiData[] } => {
+    const rsiChartData: (LineData<Time> | WhitespaceData<Time>)[] = [];
+    const rsiApiData: RsiData[] = [];
+    if (data.length < period) return { chartData: [], apiData: [] };
 
     let gains = 0;
     let losses = 0;
-    
-    // Fill initial undefined values
-    for(let i=0; i<period; i++) {
-        rsiValues.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
-    }
 
     // First period calculation
-    for(let i = 1; i <= period; i++) {
-      const change = data[i].close - data[i-1].close;
+    for (let i = 1; i <= period; i++) {
+      const change = data[i].close - data[i - 1].close;
       if (change > 0) {
         gains += change;
       } else {
@@ -210,16 +190,15 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
     let avgGain = gains / period;
     let avgLoss = losses / period;
-    
-    let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-    let rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
-    rsiValues[period] = { time: new Date(data[period].time).getTime() / 1000 as UTCTimestamp, value: rsi };
 
+    for (let i = 0; i < data.length; i++) {
+      const time = new Date(data[i].time).getTime() / 1000 as UTCTimestamp;
+      if (i < period) {
+        rsiChartData.push({ time });
+        continue;
+      }
 
-    // Subsequent periods
-    for (let i = period + 1; i < data.length; i++) {
-      const change = data[i].close - data[i-1].close;
-      
+      const change = data[i].close - data[i - 1].close;
       if (change > 0) {
         avgGain = (avgGain * (period - 1) + change) / period;
         avgLoss = (avgLoss * (period - 1)) / period;
@@ -227,19 +206,28 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
         avgLoss = (avgLoss * (period - 1) - change) / period;
         avgGain = (avgGain * (period - 1)) / period;
       }
-      
-      rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-      rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
-      rsiValues.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp, value: rsi });
-    }
 
-    return rsiValues;
+      const rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+      const rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
+      
+      rsiChartData.push({ time, value: rsi });
+      rsiApiData.push({ time: data[i].time, value: rsi });
+    }
+    
+    // Fill initial whitespace for chart
+    for (let i = 0; i < period; i++) {
+        rsiChartData.unshift({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
+    }
+    
+    return { chartData: rsiChartData.slice(period), apiData: rsiApiData };
   };
+
 
   // MACD Calculation
   const calculateMacd = (data: OhlcvData[], fastPeriod: number, slowPeriod: number, signalPeriod: number): MacdCalculatedData => {
     const prices = data.map(d => d.close);
-    if (prices.length < slowPeriod) return { macdLine: [], signalLine: [], histogram: [] };
+    const macdResult: MacdCalculatedData = { macdLine: [], signalLine: [], histogram: [], macdForApi: [] };
+    if (prices.length < slowPeriod) return macdResult;
 
     const ema = (arr: number[], period: number) => {
         const k = 2 / (period + 1);
@@ -252,45 +240,46 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
     const fastEma = ema(prices, fastPeriod);
     const slowEma = ema(prices, slowPeriod);
-
-    const macdLine: (LineData | WhitespaceData)[] = [];
     const macdValues: number[] = [];
 
     for (let i = 0; i < data.length; i++) {
+        const time = new Date(data[i].time).getTime() / 1000 as UTCTimestamp;
         if (i < slowPeriod - 1) {
-            macdLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
-        } else {
-            const macdValue = fastEma[i] - slowEma[i];
-            macdLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp, value: macdValue });
-            macdValues.push(macdValue);
+            macdResult.macdLine.push({ time });
+            continue;
         }
+        const macdValue = fastEma[i] - slowEma[i];
+        macdResult.macdLine.push({ time, value: macdValue });
+        macdValues.push(macdValue);
     }
 
     const signalEma = ema(macdValues, signalPeriod);
-    const signalLine: (LineData | WhitespaceData)[] = [];
-    const histogram: (HistogramData | WhitespaceData)[] = [];
-
     let macdIndex = 0;
+    
     for (let i = 0; i < data.length; i++) {
+        const time = new Date(data[i].time).getTime() / 1000 as UTCTimestamp;
+        const isoTime = data[i].time;
+
         if (i < slowPeriod - 1 + signalPeriod - 1) {
-            signalLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
-            histogram.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp });
+            macdResult.signalLine.push({ time });
+            macdResult.histogram.push({ time });
         } else {
             const signalValue = signalEma[macdIndex];
-            signalLine.push({ time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp, value: signalValue });
-            
             const macdValue = macdValues[macdIndex];
             const histValue = macdValue - signalValue;
-            histogram.push({
-                time: new Date(data[i].time).getTime() / 1000 as UTCTimestamp,
+
+            macdResult.signalLine.push({ time, value: signalValue });
+            macdResult.histogram.push({
+                time,
                 value: histValue,
                 color: histValue >= 0 ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
             });
+            macdResult.macdForApi.push({ time: isoTime, macd: macdValue, signal: signalValue, histogram: histValue });
             macdIndex++;
         }
     }
 
-    return { macdLine, signalLine, histogram };
+    return macdResult;
   };
 
 
@@ -416,13 +405,13 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
           
           if(rsiConfig.visible && rsiSeries) {
             const rsiResult = calculateRsi(rawOhlcvData, rsiConfig.period);
-            setFullRsiData(rsiResult);
-            rsiSeries.setData(rsiResult);
+            setFullRsiData(rsiResult.apiData);
+            rsiSeries.setData(rsiResult.chartData);
           }
 
           if(macdConfig.visible && macdLineSeries && macdSignalSeries && macdHistSeries) {
             const macdResult = calculateMacd(rawOhlcvData, macdConfig.fast, macdConfig.slow, macdConfig.signal);
-            setFullMacdData(macdResult);
+            setFullMacdData(macdResult.macdForApi);
             macdLineSeries.setData(macdResult.macdLine);
             macdSignalSeries.setData(macdResult.signalLine);
             macdHistSeries.setData(macdResult.histogram);
@@ -497,14 +486,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
           if(rsiConfig.visible && rsiSeries) {
             const newRsiData = calculateRsi(updatedOhlcv, rsiConfig.period);
-            setFullRsiData(newRsiData);
-            const lastRsiPoint = newRsiData[newRsiData.length-1];
+            setFullRsiData(newRsiData.apiData);
+            const lastRsiPoint = newRsiData.chartData[newRsiData.chartData.length-1];
             if(lastRsiPoint) rsiSeries.update(lastRsiPoint);
           }
 
           if(macdConfig.visible && macdLineSeries && macdSignalSeries && macdHistSeries) {
               const newMacdData = calculateMacd(updatedOhlcv, macdConfig.fast, macdConfig.slow, macdConfig.signal);
-              setFullMacdData(newMacdData);
+              setFullMacdData(newMacdData.macdForApi);
               const lastMacdPoint = newMacdData.macdLine[newMacdData.macdLine.length-1];
               const lastSignalPoint = newMacdData.signalLine[newMacdData.signalLine.length-1];
               const lastHistPoint = newMacdData.histogram[newMacdData.histogram.length-1];
@@ -565,3 +554,5 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(({ symbol
 
 TradingChart.displayName = 'TradingChart';
 export default TradingChart;
+
+    
