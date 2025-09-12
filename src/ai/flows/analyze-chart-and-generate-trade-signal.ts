@@ -78,7 +78,7 @@ const AnalyzeChartAndGenerateTradeSignalInputSchema = z.object({
     lower: z.number(),
   }).optional().describe('The latest Bollinger Bands values.'),
   higherTimeframe: z.string().optional().describe("The higher timeframe to consider for the primary trend (e.g., '1w' for a '1d' chart)."),
-  isPriceAboveHtfSma: z.boolean().optional().describe("Whether the current price is above the 20-period SMA on the higher timeframe. This determines the primary trend."),
+  htfOhlcvData: z.array(OhlcvDataSchema).optional().describe('The raw OHLCV data for the higher timeframe. Analyze this first to establish the primary trend context.'),
   indicatorConfig: z.any().optional().describe('The configuration for the technical indicators.'),
   question: z.string().optional().describe('A follow-up question to refine the analysis.'),
   existingAnalysis: z.string().optional().describe('The existing analysis to refine.'),
@@ -113,24 +113,15 @@ const prompt = ai.definePrompt({
   prompt: `You are an expert financial analyst who masterfully combines technical chart analysis with fundamental event analysis.
 
 **Your Process:**
-1.  **Fundamental Analysis First:** Before analyzing the chart, you MUST use the \`googleSearch\` tool to find recent news, market sentiment, and economic events related to the symbol. Formulate a clear query like "Recent news and market sentiment for BTCUSDT".
-2.  **Synthesize Findings:** Integrate the findings from your search into your overall analysis. The search results provide the "why" (fundamental context) behind the "what" (price action).
-3.  **Technical Analysis:** Perform a detailed technical analysis of the chart and the provided OHLCV data. Your analysis MUST incorporate:
-    *   **Price Action:** Identify key patterns (e.g., head and shoulders, flags, triangles), support/resistance levels, and candlestick formations.
-    *   **Volume Analysis:** Critically examine the volume data. Does volume confirm the price trend (e.g., high volume on a breakout)? Or does it show weakness (e.g., declining volume on a rally)?
+1.  **Multi-Timeframe Analysis First:** {{#if htfOhlcvData}}Before all else, analyze the provided Higher Timeframe OHLCV Data (\`htfOhlcvData\`) for the {{higherTimeframe}} timeframe. Determine the primary trend (is it bullish, bearish, or ranging?), its strength, and identify major support and resistance levels on this macro view. This context is CRITICAL.{{/if}}
+2.  **Fundamental Analysis:** Use the \`googleSearch\` tool to find recent news, market sentiment, and economic events related to the symbol. Formulate a clear query like "Recent news and market sentiment for BTCUSDT".
+3.  **Synthesize Findings:** Integrate the findings from your search and your multi-timeframe analysis into your overall analysis. The search results provide the "why" (fundamental context) and the HTF analysis provides the "where" (market structure context) behind the "what" (price action).
+4.  **Technical Analysis:** Perform a detailed technical analysis of the main chart image and its corresponding OHLCV data. Your analysis MUST incorporate:
+    *   **Price Action:** Identify key patterns (e.g., head and shoulders, flags, triangles), support/resistance levels, and candlestick formations on the execution timeframe.
+    *   **Volume Analysis:** Critically examine the volume data (\`ohlcvData\`). Does volume confirm the price trend (e.g., high volume on a breakout)? Or does it show weakness (e.g., declining volume on a rally)?
     *   **Indicator Analysis:** Look for convergences and, most importantly, **divergences** between price and the provided RSI and MACD data. A bearish divergence (higher price, lower indicator) is a strong warning sign. A bullish divergence (lower price, higher indicator) is a strong sign of a potential bottom.
-4.  **Filter by Primary Trend:** Adhere strictly to the multi-timeframe strategy. If a higher timeframe trend is provided, only generate signals that align with it.
-5.  **Adopt Agent Persona:** Adjust your trading style (Scalping, Swing, Position) based on the chart's interval.
-
-**Multi-Timeframe Strategy:**
-{{#if higherTimeframe}}
-The primary trend on the {{higherTimeframe}} timeframe has been determined for you.
-{{#if isPriceAboveHtfSma}}
-The primary trend is **BULLISH**. Only look for **BULLISH** signals.
-{{else}}
-The primary trend is **BEARISH**. Only look for **BEARISH** signals.
-{{/if}}
-{{/if}}
+5.  **Filter by Primary Trend:** Adhere strictly to the multi-timeframe strategy. Only generate trade signals that align with the primary trend you identified from the {{#if htfOhlcvData}}{{higherTimeframe}} data{{else}}your general market knowledge{{/if}}. If the primary trend is bullish, only look for long (buy) opportunities. If it's bearish, only look for short (sell) opportunities. Do not trade against the primary trend.
+6.  **Adopt Agent Persona:** Adjust your trading style (Scalping, Swing, Position) based on the chart's interval.
 
 **Timeframe-Specific Agent Persona:**
 Adapt your analysis style based on the \`interval\`. For short intervals (e.g., '5m', '15m'), act as a **SCALPER** focusing on immediate momentum. For medium intervals ('1h', '4h'), act as a **SWING TRADER** focusing on patterns. For long intervals ('1d', '1w'), act as a **POSITION TRADER** focusing on major trends.
@@ -146,23 +137,26 @@ Analyze the provided chart and data to generate a market analysis and trade sign
 
 Chart Image: {{media url=chartDataUri}}
 
-Raw OHLCV & Indicator Data (use for detailed calculations):
+Raw Data for Analysis (use for detailed calculations):
 \`\`\`json
-OHLCV: {{{json ohlcvData}}}
-RSI: {{{json rsiData}}}
-MACD: {{{json macdData}}}
+{{#if htfOhlcvData}}
+Higher Timeframe ({{higherTimeframe}}) OHLCV: {{{json htfOhlcvData}}}
+{{/if}}
+Execution Timeframe ({{interval}}) OHLCV: {{{json ohlcvData}}}
+RSI ({{interval}}): {{{json rsiData}}}
+MACD ({{interval}}): {{{json macdData}}}
 \`\`\`
 
-Latest Indicator Values:
-- Bollinger Bands: {{#if bollingerBands}}Upper={{bollingerBands.upper}}, Lower={{bollingerBands.lower}}{{else}}N/A{{/if}}
+Latest Indicator Values on {{interval}}:
+- Bollinger Bands: {{#if bollingerBands}}Upper={{bollingerBands.upper}}, Middle={{bollingerBands.middle}}, Lower={{bollingerBands.lower}}{{else}}N/A{{/if}}
 
 
 **Output Requirements:**
 
-1.  **Analysis**: A summary that starts with the fundamental context from your search, followed by a detailed technical analysis covering price action, volume, and indicators (especially divergences).
+1.  **Analysis**: A summary that starts with the fundamental context from your search and the primary trend context from the higher timeframe. Follow with a detailed technical analysis of the main chart covering price action, volume, and indicators (especially divergences).
 2.  **SWOT Analysis**:
     *   **Strengths/Weaknesses**: Internal factors from the chart (patterns, indicators, divergences, volume confirmation).
-    *   **Opportunities/Threats**: External factors from your news search (e.g., positive regulatory news, upcoming economic events).
+    *   **Opportunities/Threats**: External factors from your news search and macro context from the higher timeframe analysis.
 3.  **Trade Signal**: A signal (entry, take profit, stop loss) that is consistent with your analysis and persona.`,
 });
 
@@ -177,3 +171,5 @@ const analyzeChartAndGenerateTradeSignalFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

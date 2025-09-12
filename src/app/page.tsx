@@ -32,7 +32,6 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import type { BinanceKline } from '@/components/trading-chart';
-import { calculateSma } from '@/lib/indicators';
 
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
@@ -47,7 +46,7 @@ function Home() {
   const [symbol, setSymbol] = React.useState('BTCUSDT');
   const [interval, setInterval] = React.useState('1d');
   const [higherTimeframe, setHigherTimeframe] = React.useState<string | undefined>(undefined);
-  const [isPriceAboveHtfSma, setIsPriceAboveHtfSma] = React.useState<boolean | undefined>(undefined);
+  const [htfOhlcvData, setHtfOhlcvData] = React.useState<OhlcvData[] | undefined>(undefined);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -61,20 +60,20 @@ function Home() {
   React.useEffect(() => {
     const fetchHtfData = async () => {
       if (!higherTimeframe) {
-        setIsPriceAboveHtfSma(undefined);
+        setHtfOhlcvData(undefined);
         return;
       }
       try {
-        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${higherTimeframe}&limit=21`);
+        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${higherTimeframe}&limit=200`);
         if (!response.ok) throw new Error('Failed to fetch higher timeframe data');
         const data: BinanceKline[] = await response.json();
         
         if (data.length < 20) {
-          setIsPriceAboveHtfSma(undefined);
+          setHtfOhlcvData(undefined);
           return;
         }
 
-        const htfOhlcv: OhlcvData[] = data.map(item => ({
+        const htfData: OhlcvData[] = data.map(item => ({
           time: new Date(item[0]).toISOString(),
           open: parseFloat(item[1]),
           high: parseFloat(item[2]),
@@ -83,18 +82,11 @@ function Home() {
           volume: parseFloat(item[5])
         }));
 
-        const sma20 = calculateSma(htfOhlcv, 20);
-        const lastSmaValue = sma20[sma20.length - 1];
-        const lastClose = htfOhlcv[htfOhlcv.length - 1].close;
+        setHtfOhlcvData(htfData);
 
-        if (lastSmaValue && 'value' in lastSmaValue) {
-          setIsPriceAboveHtfSma(lastClose > lastSmaValue.value);
-        } else {
-           setIsPriceAboveHtfSma(undefined);
-        }
       } catch (error) {
         console.error("Failed to process higher timeframe data:", error);
-        setIsPriceAboveHtfSma(undefined);
+        setHtfOhlcvData(undefined);
         toast({
           variant: 'destructive',
           title: 'HTF Data Error',
@@ -191,7 +183,7 @@ function Home() {
       macdData, 
       bollingerData, 
       higherTimeframe, 
-      isPriceAboveHtfSma,
+      htfOhlcvData,
       indicatorConfig, 
       question, 
       analysisResult?.analysis
@@ -393,5 +385,7 @@ function Home() {
 }
 
 export default withAuth(Home);
+
+    
 
     

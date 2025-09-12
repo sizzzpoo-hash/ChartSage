@@ -15,7 +15,7 @@ export async function getAiAnalysis(
   macdData: MacdChartData[] | undefined,
   bollingerBands: BollingerBandsData | undefined,
   higherTimeframe: string | undefined,
-  isPriceAboveHtfSma: boolean | undefined,
+  htfOhlcvData: OhlcvData[] | undefined,
   indicatorConfig: any,
   question?: string, 
   existingAnalysis?: string
@@ -36,7 +36,7 @@ export async function getAiAnalysis(
       macdData, 
       bollingerBands,
       higherTimeframe,
-      isPriceAboveHtfSma,
+      htfOhlcvData,
       indicatorConfig,
       question, 
       existingAnalysis 
@@ -53,5 +53,7 @@ export async function getAiAnalysis(
     return { success: false, error: 'The AI model failed to process the request. Please try again later.' };
   }
 }
+
+    
 
     
