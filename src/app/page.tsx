@@ -184,7 +184,8 @@ function Home() {
     const result = await getAiAnalysis(
       dataUri, 
       ohlcvData, 
-      symbol, 
+      symbol,
+      interval,
       user.uid, 
       rsiData, 
       macdData, 

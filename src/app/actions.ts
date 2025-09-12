@@ -9,6 +9,7 @@ export async function getAiAnalysis(
   chartDataUri: string, 
   ohlcvData: OhlcvData[],
   symbol: string,
+  interval: string,
   userId: string,
   rsi: number | undefined,
   macd: MacdData | undefined,
@@ -29,7 +30,8 @@ export async function getAiAnalysis(
   try {
     const result = await analyzeChartAndGenerateTradeSignal({ 
       chartDataUri, 
-      ohlcvData, 
+      ohlcvData,
+      interval, 
       rsi, 
       macd, 
       bollingerBands,
