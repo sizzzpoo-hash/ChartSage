@@ -171,10 +171,10 @@ Raw Data for Analysis (use for detailed calculations):
 **Output Requirements:**
 
 1.  **Analysis**: A summary that starts with the Primary Trend context from the higher timeframe and the fundamental context from your search. Follow with a detailed technical analysis of the main chart covering price action, volume, and indicators (especially divergences).
-2.  **SWOT Analysis**:
-    *   **Strengths/Weaknesses**: Internal factors from the chart (patterns, indicators, divergences, volume confirmation).
-    *   **Opportunities/Threats**: External factors from your news search and the macro context from the higher timeframe analysis.
-3.  **Trade Signal**: A signal (entry, take profit, stop loss) that is consistent with your analysis and persona. If no high-probability signal aligns with the primary trend, clearly state that "No signal is recommended at this time" and explain why.`,
+2.  **SWOT Analysis**: This is your final reasoning checklist.
+    *   **Strengths/Weaknesses**: Internal factors from the chart (patterns, indicators, divergences, volume confirmation). These justify the *technical* viability of the trade.
+    *   **Opportunities/Threats**: External factors from your news search and the macro context from the higher timeframe analysis. These justify the *fundamental* and *contextual* viability of the trade.
+3.  **Trade Signal**: A signal (entry, take profit, stop loss) that is a direct consequence of your SWOT analysis. The strengths and opportunities should support the signal, while the weaknesses and threats should inform the risk management (stop loss). If no high-probability signal aligns with the primary trend, clearly state that "No signal is recommended at this time" and explain why.`,
 });
 
 const analyzeChartAndGenerateTradeSignalFlow = ai.defineFlow(
