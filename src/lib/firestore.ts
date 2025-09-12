@@ -63,8 +63,7 @@ export async function getAnalysisHistory(
 
   try {
     const historyCollection = collection(db, 'analysisHistory');
-    let q;
-
+    
     const queryConstraints = [
         where('userId', '==', userId),
         orderBy('timestamp', 'desc'),
@@ -76,7 +75,7 @@ export async function getAnalysisHistory(
         queryConstraints.push(firestoreStartAfter(startAfterTimestamp));
     }
 
-    q = query(historyCollection, ...queryConstraints);
+    const q = query(historyCollection, ...queryConstraints);
 
     const querySnapshot = await getDocs(q);
     console.log(`Found ${querySnapshot.docs.length} documents for user.`);
