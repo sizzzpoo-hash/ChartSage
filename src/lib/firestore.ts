@@ -8,9 +8,14 @@ import {
   where,
   getDocs,
   orderBy,
+  limit as firestoreLimit,
+  startAfter as firestoreStartAfter,
+  getDoc,
+  doc,
+  Timestamp,
 } from 'firebase/firestore';
 import type { AnalyzeChartAndGenerateTradeSignalOutput } from '@/ai/flows/analyze-chart-and-generate-trade-signal';
-import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
+import type { AnalysisEntry } from '@/ai/flows/review-analysis-history';
 
 const db = getFirestore(app);
 
@@ -46,33 +51,43 @@ export async function saveAnalysisResult(
 }
 
 export async function getAnalysisHistory(
-  userId: string
-): Promise<ReviewAnalysisHistoryOutput> {
-  console.log('Fetching analysis history for userId:', userId);
+  userId: string,
+  limitNum: number = 10,
+  startAfterTimestampStr?: string | null
+): Promise<AnalysisEntry[]> {
   if (!userId) {
     console.error('No user ID provided to getAnalysisHistory.');
     return [];
   }
 
   try {
-    const q = query(
-      collection(db, 'analysisHistory'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
-    );
+    const historyCollection = collection(db, 'analysisHistory');
+    let q;
+
+    const queryConstraints = [
+        where('userId', '==', userId),
+        orderBy('timestamp', 'desc'),
+        firestoreLimit(limitNum)
+    ];
+
+    if (startAfterTimestampStr) {
+        const startAfterTimestamp = Timestamp.fromDate(new Date(startAfterTimestampStr));
+        queryConstraints.push(firestoreStartAfter(startAfterTimestamp));
+    }
+
+    q = query(historyCollection, ...queryConstraints);
 
     const querySnapshot = await getDocs(q);
     console.log(`Found ${querySnapshot.docs.length} documents for user.`);
 
-    const history: ReviewAnalysisHistoryOutput = [];
+    const history: AnalysisEntry[] = [];
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      console.log('Processing document:', doc.id, data);
-      
       const timestamp = data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : new Date().toISOString();
       
       history.push({
+        id: doc.id,
         timestamp: timestamp,
         chartName: data.chartName,
         analysisSummary: data.analysisSummary,
@@ -81,11 +96,9 @@ export async function getAnalysisHistory(
       });
     });
 
-    console.log('Returning formatted history:', history);
     return history;
   } catch (error) {
     console.error('Error fetching analysis history from Firestore:', error);
-    // This error might indicate a missing index. Firebase usually provides a link in the error message to create it.
     return [];
   }
 }

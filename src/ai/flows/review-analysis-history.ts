@@ -3,7 +3,7 @@
 /**
  * @fileOverview AI flow for reviewing the analysis history of crypto charts.
  *
- * - reviewAnalysisHistory - A function that retrieves and formats the analysis history.
+ * - reviewAnalysisHistory - A function that retrieves and formats the analysis history with pagination.
  * - ReviewAnalysisHistoryInput - The input type for the reviewAnalysisHistory function.
  * - ReviewAnalysisHistoryOutput - The return type for the reviewAnalysisHistory function.
  */
@@ -14,10 +14,13 @@ import {z} from 'genkit';
 
 const ReviewAnalysisHistoryInputSchema = z.object({
   userId: z.string().describe('The ID of the user whose history is being reviewed.'),
+  limit: z.number().optional().describe('The number of records to fetch.'),
+  startAfter: z.string().optional().nullable().describe('The timestamp of the last document from the previous page.'),
 });
 export type ReviewAnalysisHistoryInput = z.infer<typeof ReviewAnalysisHistoryInputSchema>;
 
-const AnalysisEntrySchema = z.object({
+export const AnalysisEntrySchema = z.object({
+  id: z.string().describe('The unique identifier for the analysis entry.'),
   timestamp: z.string().describe('The timestamp of the analysis.'),
   chartName: z.string().describe('The name or identifier of the chart analyzed.'),
   analysisSummary: z.string().describe('A summary of the AI analysis.'),
@@ -25,7 +28,12 @@ const AnalysisEntrySchema = z.object({
   chartDataUri: z.string().optional().describe('A snapshot of the chart at the time of analysis.'),
 });
 
-const ReviewAnalysisHistoryOutputSchema = z.array(AnalysisEntrySchema).describe('An array of analysis history entries.');
+export type AnalysisEntry = z.infer<typeof AnalysisEntrySchema>;
+
+const ReviewAnalysisHistoryOutputSchema = z.object({
+    history: z.array(AnalysisEntrySchema).describe('An array of analysis history entries for the current page.'),
+});
+
 export type ReviewAnalysisHistoryOutput = z.infer<typeof ReviewAnalysisHistoryOutputSchema>;
 
 export async function reviewAnalysisHistory(input: ReviewAnalysisHistoryInput): Promise<ReviewAnalysisHistoryOutput> {
@@ -37,8 +45,8 @@ const reviewAnalysisHistoryFlow = ai.defineFlow({
     inputSchema: ReviewAnalysisHistoryInputSchema,
     outputSchema: ReviewAnalysisHistoryOutputSchema,
   },
-  async ({ userId }) => {
-    const history = await getAnalysisHistory(userId);
-    return history;
+  async ({ userId, limit, startAfter }) => {
+    const history = await getAnalysisHistory(userId, limit, startAfter);
+    return { history };
   }
 );

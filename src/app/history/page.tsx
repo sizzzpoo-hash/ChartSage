@@ -7,6 +7,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import {
   Table,
@@ -17,36 +18,69 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { History } from 'lucide-react';
 import withAuth from '@/components/auth/with-auth';
-import { useEffect, useState } from 'react';
-import type { ReviewAnalysisHistoryOutput } from '@/ai/flows/review-analysis-history';
+import { useEffect, useState, useCallback } from 'react';
+import type { ReviewAnalysisHistoryOutput, AnalysisEntry } from '@/ai/flows/review-analysis-history';
 import { useAuth } from '@/hooks/use-auth';
 import Image from 'next/image';
 
+const PAGE_SIZE = 10;
 
 function HistoryPage() {
   const { user } = useAuth();
-  const [history, setHistory] = useState<ReviewAnalysisHistoryOutput>([]);
+  const [historyPages, setHistoryPages] = useState<Record<number, AnalysisEntry[]>>({});
+  const [lastDocTimestamps, setLastDocTimestamps] = useState<Record<number, string | null>>({ 0: null });
+  const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isLastPage, setIsLastPage] = useState(false);
+
+  const fetchHistory = useCallback(async (page: number) => {
+    if (!user || historyPages[page]) return;
+
+    setLoading(true);
+    try {
+      const startAfter = lastDocTimestamps[page] || null;
+      const result = await reviewAnalysisHistory({
+        userId: user.uid,
+        limit: PAGE_SIZE,
+        startAfter,
+      });
+      
+      const newHistory = result.history;
+
+      setHistoryPages(prev => ({ ...prev, [page]: newHistory }));
+
+      if (newHistory.length < PAGE_SIZE) {
+        setIsLastPage(true);
+      } else {
+        const lastDoc = newHistory[newHistory.length - 1];
+        setLastDocTimestamps(prev => ({ ...prev, [page + 1]: lastDoc.timestamp }));
+        setIsLastPage(false);
+      }
+    } catch (error) {
+      console.error('Failed to fetch history', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, historyPages, lastDocTimestamps]);
 
   useEffect(() => {
-    async function getHistory() {
-      if (!user) return;
+    fetchHistory(currentPage);
+  }, [currentPage, fetchHistory]);
 
-      setLoading(true);
-      try {
-        const historyData = await reviewAnalysisHistory({ userId: user.uid });
-        setHistory(historyData);
-      } catch (error) {
-        console.error('Failed to fetch history', error);
-      } finally {
-        setLoading(false);
-      }
+  const handleNextPage = () => {
+    if (!isLastPage) {
+      setCurrentPage(prev => prev + 1);
     }
-    getHistory();
-  }, [user]);
+  };
 
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(0, prev - 1));
+  };
+
+  const currentHistory = historyPages[currentPage] || [];
 
   return (
     <Card>
@@ -73,14 +107,14 @@ function HistoryPage() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                 <TableRow>
+                <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
                     Loading history...
                   </TableCell>
                 </TableRow>
-              ) : history.length > 0 ? (
-                history.map((item, index) => (
-                  <TableRow key={index}>
+              ) : currentHistory.length > 0 ? (
+                currentHistory.map((item) => (
+                  <TableRow key={item.id}>
                     <TableCell className="font-medium">
                       {new Date(item.timestamp).toLocaleString()}
                     </TableCell>
@@ -113,6 +147,24 @@ function HistoryPage() {
           </Table>
         </div>
       </CardContent>
+      <CardFooter>
+        <div className="flex w-full justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={handlePreviousPage}
+            disabled={currentPage === 0 || loading}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleNextPage}
+            disabled={isLastPage || loading}
+          >
+            Next
+          </Button>
+        </div>
+      </CardFooter>
     </Card>
   );
 }
