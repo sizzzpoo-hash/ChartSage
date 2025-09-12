@@ -36,8 +36,8 @@ import { calculateSma } from '@/lib/indicators';
 
 
 const cryptoPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT'];
-const intervals = ['1h', '4h', '1d', '1w'];
-const higherTimeframes = ['1w', '1M'];
+const intervals = ['5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '3d', '1w'];
+const higherTimeframes = ['1d', '3d', '1w', '1M'];
 
 
 function Home() {
@@ -80,6 +80,7 @@ function Home() {
           high: parseFloat(item[2]),
           low: parseFloat(item[3]),
           close: parseFloat(item[4]),
+          volume: parseFloat(item[5])
         }));
 
         const sma20 = calculateSma(htfOhlcv, 20);
@@ -296,8 +297,7 @@ function Home() {
                         </div>
                          <Separator />
                         <div className="flex items-center justify-between">
-                            <Label htmlFor="macd-visible">MACD</Label>
-                            <Switch id="macd-visible" checked={indicators.macd.visible} onCheckedChange={() => handleIndicatorToggle('macd')} />
+                            <Label htmlFor="macd-visible">MACD</Label>                            <Switch id="macd-visible" checked={indicators.macd.visible} onCheckedChange={() => handleIndicatorToggle('macd')} />
                         </div>
                          <div className='space-y-2'>
                           <Label>MACD Parameters</Label>
@@ -320,7 +320,7 @@ function Home() {
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
                       {higherTimeframes.map((item) => (
-                        <SelectItem key={item} value={item} disabled={!intervals.includes(interval) || item === interval}>
+                        <SelectItem key={item} value={item} disabled={intervals.indexOf(item) <= intervals.indexOf(interval)}>
                           {item}
                         </SelectItem>
                       ))}
