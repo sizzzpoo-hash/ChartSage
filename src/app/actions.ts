@@ -44,7 +44,12 @@ export async function getAiAnalysis(
     
     // Save the analysis result to Firestore ONLY after a successful analysis and if it's not a follow-up question
     if (!question) {
-      await saveAnalysisResult(result, symbol, chartDataUri, userId);
+      try {
+        await saveAnalysisResult(result, symbol, chartDataUri, userId);
+      } catch (saveError) {
+        console.error('Failed to save analysis to history:', saveError);
+        // Don't fail the entire request if saving fails, just log the error
+      }
     }
     
     return { success: true, data: result };
