@@ -32,7 +32,7 @@ export async function saveAnalysisResult(
 
   const dataToSave = {
     userId: userId,
-    timestamp: new Date(),
+    timestamp: serverTimestamp(),
     chartName: symbol,
     analysisSummary: analysis.analysis,
     tradeSignal: analysis.tradeSignal,
@@ -41,6 +41,7 @@ export async function saveAnalysisResult(
   };
 
   try {
+    console.log('Saving analysis result for user:', userId);
     const docRef = await addDoc(collection(db, 'analysisHistory'), dataToSave);
     console.log('Analysis result saved successfully with document ID:', docRef.id);
     return true;
@@ -69,15 +70,11 @@ export async function getAnalysisHistory(
         firestoreLimit(limitNum)
     ];
 
-    if (startAfterTimestampStr) {
-        const startAfterTimestamp = Timestamp.fromDate(new Date(startAfterTimestampStr));
-        queryConstraints.push(firestoreStartAfter(startAfterTimestamp));
-    }
-
     const q = query(historyCollection, ...queryConstraints);
+    console.log(`Querying analysis history for user: ${userId}`);
 
     const querySnapshot = await getDocs(q);
-    console.log(`Found ${querySnapshot.docs.length} documents for user.`);
+    console.log(`Found ${querySnapshot.docs.length} documents for user ${userId}.`);
 
     const history: AnalysisEntry[] = [];
 
