@@ -25,7 +25,6 @@ export async function saveAnalysisResult(
   chartDataUri: string,
   userId: string,
 ) {
-  console.log('Attempting to save analysis for userId:', userId);
   if (!userId) {
     console.error('No user ID provided, skipping save.');
     return;
@@ -33,7 +32,7 @@ export async function saveAnalysisResult(
 
   const dataToSave = {
     userId: userId,
-    timestamp: serverTimestamp(),
+    timestamp: new Date(),
     chartName: symbol,
     analysisSummary: analysis.analysis,
     tradeSignal: analysis.tradeSignal,
@@ -41,13 +40,13 @@ export async function saveAnalysisResult(
     swot: analysis.swot,
   };
 
-  console.log('Data to be saved:', dataToSave);
-
   try {
     const docRef = await addDoc(collection(db, 'analysisHistory'), dataToSave);
     console.log('Analysis result saved successfully with document ID:', docRef.id);
+    return true;
   } catch (error) {
     console.error('Error saving analysis result to Firestore:', error);
+    throw error; // Re-throw the error so it can be handled upstream
   }
 }
 
@@ -84,7 +83,18 @@ export async function getAnalysisHistory(
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      const timestamp = data.timestamp?.toDate ? data.timestamp.toDate().toISOString() : new Date().toISOString();
+      // Handle both Date objects and Firestore Timestamps
+      let timestamp: string;
+      if (data.timestamp?.toDate) {
+        // Firestore Timestamp
+        timestamp = data.timestamp.toDate().toISOString();
+      } else if (data.timestamp instanceof Date) {
+        // Regular Date object
+        timestamp = data.timestamp.toISOString();
+      } else {
+        // Fallback
+        timestamp = new Date().toISOString();
+      }
       
       history.push({
         id: doc.id,
